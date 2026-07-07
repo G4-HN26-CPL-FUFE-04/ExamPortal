@@ -79,6 +79,13 @@
   background: rgba(255, 255, 255, 0.08);
 }
 
+.subject-banner {
+  padding: 0.9rem 1rem;
+  border-radius: 14px;
+  background: #edf3fa;
+  color: #173c64;
+}
+
 .auth-layout {
   min-height: 100vh;
   display: grid;
@@ -314,6 +321,58 @@ td {
 .danger-button {
   background: #f7dddd;
   color: #8f1d1d;
+}
+
+.subject-link-card {
+  text-decoration: none;
+  color: inherit;
+}
+
+.faux-link {
+  display: inline-flex;
+  width: fit-content;
+}
+
+.back-link-button {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+.question-topbar {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.question-icon-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.icon-button {
+  border: 0;
+  border-radius: 10px;
+  background: #edf3fa;
+  color: #173c64;
+  font: inherit;
+  padding: 0.45rem 0.7rem;
+  min-width: 2.5rem;
+}
+
+.danger-icon-button {
+  background: #f7dddd;
+  color: #8f1d1d;
+}
+
+.question-title-button {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  font: inherit;
+  color: #173c64;
+  font-weight: 700;
+  cursor: pointer;
 }
 
 .preview-option {

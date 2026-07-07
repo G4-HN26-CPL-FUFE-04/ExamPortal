@@ -14,7 +14,6 @@ IF OBJECT_ID(N'exam_questions', N'U') IS NOT NULL DROP TABLE exam_questions;
 IF OBJECT_ID(N'question_options', N'U') IS NOT NULL DROP TABLE question_options;
 IF OBJECT_ID(N'questions', N'U') IS NOT NULL DROP TABLE questions;
 IF OBJECT_ID(N'exams', N'U') IS NOT NULL DROP TABLE exams;
-IF OBJECT_ID(N'topics', N'U') IS NOT NULL DROP TABLE topics;
 IF OBJECT_ID(N'subjects', N'U') IS NOT NULL DROP TABLE subjects;
 IF OBJECT_ID(N'users', N'U') IS NOT NULL DROP TABLE users;
 IF OBJECT_ID(N'roles', N'U') IS NOT NULL DROP TABLE roles;
@@ -46,27 +45,14 @@ CREATE TABLE subjects (
     CONSTRAINT fk_subjects_created_by FOREIGN KEY (created_by) REFERENCES users(id)
 );
 
-CREATE TABLE topics (
-    id BIGINT IDENTITY(1,1) PRIMARY KEY,
-    subject_id BIGINT NOT NULL,
-    name NVARCHAR(255) NOT NULL,
-    description NVARCHAR(1000) NULL,
-    CONSTRAINT fk_topics_subject FOREIGN KEY (subject_id) REFERENCES subjects(id)
-);
-
 CREATE TABLE questions (
     id BIGINT IDENTITY(1,1) PRIMARY KEY,
     subject_id BIGINT NOT NULL,
-    topic_id BIGINT NOT NULL,
     content NVARCHAR(MAX) NOT NULL,
-    difficulty NVARCHAR(50) NOT NULL,
-    status NVARCHAR(50) NOT NULL,
-    explanation NVARCHAR(MAX) NULL,
     created_by BIGINT NULL,
     created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
     updated_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
     CONSTRAINT fk_questions_subject FOREIGN KEY (subject_id) REFERENCES subjects(id),
-    CONSTRAINT fk_questions_topic FOREIGN KEY (topic_id) REFERENCES topics(id),
     CONSTRAINT fk_questions_created_by FOREIGN KEY (created_by) REFERENCES users(id)
 );
 

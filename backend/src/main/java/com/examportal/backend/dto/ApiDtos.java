@@ -1,9 +1,7 @@
 package com.examportal.backend.dto;
 
 import com.examportal.backend.entity.enums.AttemptStatus;
-import com.examportal.backend.entity.enums.DifficultyLevel;
 import com.examportal.backend.entity.enums.ExamStatus;
-import com.examportal.backend.entity.enums.QuestionStatus;
 import com.examportal.backend.entity.enums.RoleName;
 import com.examportal.backend.entity.enums.SessionStatus;
 import com.examportal.backend.entity.enums.UserStatus;
@@ -23,21 +21,22 @@ public final class ApiDtos {
     public record OptionDto(Long id, String label, String content, boolean correct) {
     }
 
-    public record QuestionSummaryDto(Long id, String content, DifficultyLevel difficulty, QuestionStatus status,
-                                     String subjectName, String topicName) {
+    public record QuestionSummaryDto(
+        Long id,
+        String content,
+        Long subjectId,
+        String subjectName,
+        String correctOptionLabel,
+        String correctOptionContent
+    ) {
     }
 
-    public record QuestionDetailDto(Long id, String content, DifficultyLevel difficulty, QuestionStatus status,
-                                    String explanation, Long subjectId, Long topicId, List<OptionDto> options) {
+    public record QuestionDetailDto(Long id, String content, Long subjectId, String subjectName, List<OptionDto> options) {
     }
 
     public record QuestionPayload(
         @NotBlank String content,
         @NotNull Long subjectId,
-        @NotNull Long topicId,
-        @NotNull DifficultyLevel difficulty,
-        QuestionStatus status,
-        String explanation,
         @NotEmpty @Size(min = 4, max = 4) List<OptionPayload> options
     ) {
     }
@@ -47,6 +46,33 @@ public final class ApiDtos {
         @NotBlank String content,
         boolean correct
     ) {
+    }
+
+    public record QuestionImportPayload(@NotNull Long subjectId, @NotBlank String rawText) {
+    }
+
+    public record QuestionImportPreviewQuestionDto(
+        String content,
+        String correctOptionLabel,
+        String correctOptionContent,
+        List<OptionDto> options
+    ) {
+    }
+
+    public record QuestionImportErrorDto(int blockNumber, String message, String rawBlock) {
+    }
+
+    public record QuestionImportPreviewDto(
+        Long subjectId,
+        String subjectName,
+        int validCount,
+        int invalidCount,
+        List<QuestionImportPreviewQuestionDto> questions,
+        List<QuestionImportErrorDto> errors
+    ) {
+    }
+
+    public record QuestionImportResultDto(int importedCount) {
     }
 
     public record AuthRequest(@Email @NotBlank String email, @NotBlank String password) {
@@ -71,13 +97,7 @@ public final class ApiDtos {
     public record SubjectPayload(@NotBlank String name, String description) {
     }
 
-    public record TopicPayload(@NotBlank String name, String description, @NotNull Long subjectId) {
-    }
-
     public record SubjectDto(Long id, String name, String description) {
-    }
-
-    public record TopicDto(Long id, Long subjectId, String name, String description) {
     }
 
     public record ExamPayload(@NotBlank String title, String description, @NotNull Long subjectId, @Positive int durationMinutes,
@@ -118,7 +138,7 @@ public final class ApiDtos {
     }
 
     public record AttemptReviewDto(Long questionId, String content, String selectedLabel, String correctLabel,
-                                   boolean correct, String explanation) {
+                                   boolean correct) {
     }
 
     public record DashboardOverviewDto(long totalUsers, long totalStudents, long totalInstructors, long totalQuestions,
@@ -129,6 +149,6 @@ public final class ApiDtos {
                                         double lowestScore, long participationCount) {
     }
 
-    public record DashboardQuestionStatsDto(long enabledQuestions, long disabledQuestions) {
+    public record DashboardQuestionStatsDto(long totalQuestions, long totalSubjects) {
     }
 }

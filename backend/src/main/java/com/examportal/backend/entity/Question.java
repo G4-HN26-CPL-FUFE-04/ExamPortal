@@ -1,10 +1,6 @@
 package com.examportal.backend.entity;
 
-import com.examportal.backend.entity.enums.DifficultyLevel;
-import com.examportal.backend.entity.enums.QuestionStatus;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -33,19 +29,7 @@ public class Question {
     @JoinColumn(name = "subject_id")
     private Subject subject;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "topic_id")
-    private Topic topic;
-
     private String content;
-
-    @Enumerated(EnumType.STRING)
-    private DifficultyLevel difficulty;
-
-    @Enumerated(EnumType.STRING)
-    private QuestionStatus status;
-
-    private String explanation;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by")

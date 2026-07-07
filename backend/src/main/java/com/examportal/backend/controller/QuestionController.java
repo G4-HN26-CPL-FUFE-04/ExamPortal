@@ -1,7 +1,6 @@
 package com.examportal.backend.controller;
 
 import com.examportal.backend.dto.ApiDtos;
-import com.examportal.backend.entity.enums.QuestionStatus;
 import com.examportal.backend.service.PortalService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -10,7 +9,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -29,11 +27,11 @@ public class QuestionController {
 
     @GetMapping
     public ResponseEntity<List<ApiDtos.QuestionSummaryDto>> getQuestions(@RequestParam(required = false) String keyword,
-                                                                         @RequestParam(required = false) QuestionStatus status) {
-        return ResponseEntity.ok(portalService.getQuestions(keyword, status));
+                                                                         @RequestParam(required = false) Long subjectId) {
+        return ResponseEntity.ok(portalService.getQuestions(keyword, subjectId));
     }
 
-    @GetMapping("/{id}")
+    @GetMapping("/{id:\\d+}")
     public ResponseEntity<ApiDtos.QuestionDetailDto> getQuestion(@PathVariable Long id) {
         return ResponseEntity.ok(portalService.getQuestion(id));
     }
@@ -45,23 +43,16 @@ public class QuestionController {
     }
 
     @PreAuthorize("hasAnyRole('ADMIN','INSTRUCTOR')")
-    @PutMapping("/{id}")
+    @PutMapping("/{id:\\d+}")
     public ResponseEntity<ApiDtos.QuestionDetailDto> updateQuestion(@PathVariable Long id,
                                                                     @Valid @RequestBody ApiDtos.QuestionPayload payload) {
         return ResponseEntity.ok(portalService.saveQuestion(payload, id));
     }
 
     @PreAuthorize("hasAnyRole('ADMIN','INSTRUCTOR')")
-    @DeleteMapping("/{id}")
+    @DeleteMapping("/{id:\\d+}")
     public ResponseEntity<Void> deleteQuestion(@PathVariable Long id) {
         portalService.deleteQuestion(id);
         return ResponseEntity.noContent().build();
-    }
-
-    @PreAuthorize("hasAnyRole('ADMIN','INSTRUCTOR')")
-    @PatchMapping("/{id}/status")
-    public ResponseEntity<ApiDtos.QuestionDetailDto> updateStatus(@PathVariable Long id,
-                                                                  @RequestParam QuestionStatus status) {
-        return ResponseEntity.ok(portalService.updateQuestionStatus(id, status));
     }
 }

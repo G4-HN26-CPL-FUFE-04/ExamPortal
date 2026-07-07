@@ -10,10 +10,8 @@ import com.examportal.backend.entity.Question;
 import com.examportal.backend.entity.QuestionOption;
 import com.examportal.backend.entity.Role;
 import com.examportal.backend.entity.Subject;
-import com.examportal.backend.entity.Topic;
 import com.examportal.backend.entity.User;
 import com.examportal.backend.entity.enums.AttemptStatus;
-import com.examportal.backend.entity.enums.QuestionStatus;
 import com.examportal.backend.entity.enums.RoleName;
 import com.examportal.backend.entity.enums.SessionStatus;
 import com.examportal.backend.entity.enums.UserStatus;
@@ -28,7 +26,6 @@ import com.examportal.backend.repository.QuestionOptionRepository;
 import com.examportal.backend.repository.QuestionRepository;
 import com.examportal.backend.repository.RoleRepository;
 import com.examportal.backend.repository.SubjectRepository;
-import com.examportal.backend.repository.TopicRepository;
 import com.examportal.backend.repository.UserRepository;
 import com.examportal.backend.security.JwtService;
 import java.time.Duration;
@@ -38,6 +35,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -55,7 +53,6 @@ public class PortalService {
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final SubjectRepository subjectRepository;
-    private final TopicRepository topicRepository;
     private final QuestionRepository questionRepository;
     private final QuestionOptionRepository questionOptionRepository;
     private final ExamRepository examRepository;
@@ -68,7 +65,7 @@ public class PortalService {
     private final JwtService jwtService;
 
     public PortalService(UserRepository userRepository, RoleRepository roleRepository, SubjectRepository subjectRepository,
-                         TopicRepository topicRepository, QuestionRepository questionRepository,
+                         QuestionRepository questionRepository,
                          QuestionOptionRepository questionOptionRepository, ExamRepository examRepository,
                          ExamQuestionRepository examQuestionRepository, ExamSessionRepository examSessionRepository,
                          AttemptRepository attemptRepository, AttemptAnswerRepository attemptAnswerRepository,
@@ -77,7 +74,6 @@ public class PortalService {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.subjectRepository = subjectRepository;
-        this.topicRepository = topicRepository;
         this.questionRepository = questionRepository;
         this.questionOptionRepository = questionOptionRepository;
         this.examRepository = examRepository;
@@ -192,31 +188,14 @@ public class PortalService {
         subjectRepository.delete(findSubject(id));
     }
 
-    public List<ApiDtos.TopicDto> getTopics() {
-        return topicRepository.findAll().stream()
-            .map(topic -> new ApiDtos.TopicDto(topic.getId(), topic.getSubject().getId(), topic.getName(), topic.getDescription()))
-            .toList();
-    }
-
-    public ApiDtos.TopicDto saveTopic(ApiDtos.TopicPayload payload, Long id) {
-        Topic topic = id == null ? new Topic() : findTopic(id);
-        topic.setName(payload.name());
-        topic.setDescription(payload.description());
-        topic.setSubject(findSubject(payload.subjectId()));
-        Topic saved = topicRepository.save(topic);
-        return new ApiDtos.TopicDto(saved.getId(), saved.getSubject().getId(), saved.getName(), saved.getDescription());
-    }
-
-    public void deleteTopic(Long id) {
-        topicRepository.delete(findTopic(id));
-    }
-
-    public List<ApiDtos.QuestionSummaryDto> getQuestions(String keyword, QuestionStatus status) {
+    public List<ApiDtos.QuestionSummaryDto> getQuestions(String keyword, Long subjectId) {
         List<Question> questions;
-        if (keyword != null && !keyword.isBlank()) {
+        if (subjectId != null && keyword != null && !keyword.isBlank()) {
+            questions = questionRepository.findBySubject_IdAndContentContainingIgnoreCase(subjectId, keyword);
+        } else if (subjectId != null) {
+            questions = questionRepository.findBySubject_Id(subjectId);
+        } else if (keyword != null && !keyword.isBlank()) {
             questions = questionRepository.findByContentContainingIgnoreCase(keyword);
-        } else if (status != null) {
-            questions = questionRepository.findByStatus(status);
         } else {
             questions = questionRepository.findAll();
         }
@@ -232,17 +211,9 @@ public class PortalService {
 
         Question question = id == null ? new Question() : findQuestion(id);
         Subject subject = findSubject(payload.subjectId());
-        Topic topic = findTopic(payload.topicId());
-        if (!topic.getSubject().getId().equals(subject.getId())) {
-            throw new BadRequestException("Topic must belong to the selected subject");
-        }
 
         question.setContent(payload.content().trim());
         question.setSubject(subject);
-        question.setTopic(topic);
-        question.setDifficulty(payload.difficulty());
-        question.setStatus(payload.status() == null ? QuestionStatus.ENABLED : payload.status());
-        question.setExplanation(payload.explanation() == null ? null : payload.explanation().trim());
         if (question.getCreatedBy() == null) {
             question.setCreatedBy(getCurrentUser());
         }
@@ -264,15 +235,36 @@ public class PortalService {
         return toQuestionDetailDto(saved);
     }
 
+    public ApiDtos.QuestionImportPreviewDto previewQuestionImport(ApiDtos.QuestionImportPayload payload) {
+        Subject subject = findSubject(payload.subjectId());
+        ImportParseResult parseResult = parseQuestionImport(payload.rawText());
+        return new ApiDtos.QuestionImportPreviewDto(
+            subject.getId(),
+            subject.getName(),
+            parseResult.questions().size(),
+            parseResult.errors().size(),
+            parseResult.questions().stream().map(this::toImportPreviewQuestionDto).toList(),
+            parseResult.errors()
+        );
+    }
+
+    public ApiDtos.QuestionImportResultDto importQuestions(ApiDtos.QuestionImportPayload payload) {
+        Subject subject = findSubject(payload.subjectId());
+        ImportParseResult parseResult = parseQuestionImport(payload.rawText());
+        if (!parseResult.errors().isEmpty()) {
+            String errorMessage = parseResult.errors().stream()
+                .map(error -> "Block " + error.blockNumber() + ": " + error.message())
+                .collect(Collectors.joining(" | "));
+            throw new BadRequestException(errorMessage);
+        }
+
+        parseResult.questions().forEach(questionData -> saveImportedQuestion(subject, questionData));
+        return new ApiDtos.QuestionImportResultDto(parseResult.questions().size());
+    }
+
     public void deleteQuestion(Long id) {
         questionOptionRepository.deleteAll(questionOptionRepository.findByQuestion_IdOrderByOptionLabelAsc(id));
         questionRepository.delete(findQuestion(id));
-    }
-
-    public ApiDtos.QuestionDetailDto updateQuestionStatus(Long id, QuestionStatus status) {
-        Question question = findQuestion(id);
-        question.setStatus(status);
-        return toQuestionDetailDto(questionRepository.save(question));
     }
 
     public List<ApiDtos.ExamDto> getExams() {
@@ -474,8 +466,8 @@ public class PortalService {
 
     public ApiDtos.DashboardQuestionStatsDto getDashboardQuestionStats() {
         return new ApiDtos.DashboardQuestionStatsDto(
-            questionRepository.findByStatus(QuestionStatus.ENABLED).size(),
-            questionRepository.findByStatus(QuestionStatus.DISABLED).size()
+            questionRepository.count(),
+            subjectRepository.count()
         );
     }
 
@@ -507,11 +499,6 @@ public class PortalService {
     private Subject findSubject(Long id) {
         return subjectRepository.findById(id)
             .orElseThrow(() -> new NotFoundException("Subject not found"));
-    }
-
-    private Topic findTopic(Long id) {
-        return topicRepository.findById(id)
-            .orElseThrow(() -> new NotFoundException("Topic not found"));
     }
 
     private Question findQuestion(Long id) {
@@ -560,13 +547,18 @@ public class PortalService {
     }
 
     private ApiDtos.QuestionSummaryDto toQuestionSummaryDto(Question question) {
+        QuestionOption correctOption = questionOptionRepository.findByQuestion_IdOrderByOptionLabelAsc(question.getId()).stream()
+            .filter(QuestionOption::isCorrect)
+            .findFirst()
+            .orElse(null);
+
         return new ApiDtos.QuestionSummaryDto(
             question.getId(),
             question.getContent(),
-            question.getDifficulty(),
-            question.getStatus(),
+            question.getSubject().getId(),
             question.getSubject().getName(),
-            question.getTopic().getName()
+            correctOption == null ? null : correctOption.getOptionLabel(),
+            correctOption == null ? null : correctOption.getOptionContent()
         );
     }
 
@@ -578,11 +570,8 @@ public class PortalService {
         return new ApiDtos.QuestionDetailDto(
             question.getId(),
             question.getContent(),
-            question.getDifficulty(),
-            question.getStatus(),
-            question.getExplanation(),
             question.getSubject().getId(),
-            question.getTopic().getId(),
+            question.getSubject().getName(),
             options
         );
     }
@@ -645,8 +634,7 @@ public class PortalService {
                         answer.getQuestion().getContent(),
                         selectedLabel,
                         correctLabel,
-                        answer.isCorrect(),
-                        answer.getQuestion().getExplanation()
+                        answer.isCorrect()
                     );
                 })
                 .sorted(Comparator.comparing(ApiDtos.AttemptReviewDto::questionId))
@@ -671,5 +659,131 @@ public class PortalService {
             questions,
             review
         );
+    }
+
+    private ApiDtos.QuestionImportPreviewQuestionDto toImportPreviewQuestionDto(ImportedQuestionData questionData) {
+        ApiDtos.OptionDto correctOption = questionData.options().stream()
+            .filter(ApiDtos.OptionPayload::correct)
+            .map(option -> new ApiDtos.OptionDto(null, option.label(), option.content(), true))
+            .findFirst()
+            .orElse(null);
+
+        return new ApiDtos.QuestionImportPreviewQuestionDto(
+            questionData.content(),
+            correctOption == null ? null : correctOption.label(),
+            correctOption == null ? null : correctOption.content(),
+            questionData.options().stream()
+                .map(option -> new ApiDtos.OptionDto(null, option.label(), option.content(), option.correct()))
+                .toList()
+        );
+    }
+
+    private void saveImportedQuestion(Subject subject, ImportedQuestionData questionData) {
+        ApiDtos.QuestionPayload payload = new ApiDtos.QuestionPayload(questionData.content(), subject.getId(), questionData.options());
+        validateQuestionPayload(payload);
+
+        Question question = new Question();
+        question.setContent(questionData.content());
+        question.setSubject(subject);
+        question.setCreatedBy(getCurrentUser());
+        Question saved = questionRepository.save(question);
+
+        questionData.options().forEach(optionPayload -> {
+            QuestionOption option = new QuestionOption();
+            option.setQuestion(saved);
+            option.setOptionLabel(optionPayload.label().trim().toUpperCase());
+            option.setOptionContent(optionPayload.content().trim());
+            option.setCorrect(optionPayload.correct());
+            questionOptionRepository.save(option);
+        });
+    }
+
+    private ImportParseResult parseQuestionImport(String rawText) {
+        String normalized = rawText == null ? "" : rawText.replace("\r\n", "\n").trim();
+        if (normalized.isBlank()) {
+            throw new BadRequestException("Import text is empty");
+        }
+
+        List<ImportedQuestionData> questions = new ArrayList<>();
+        List<ApiDtos.QuestionImportErrorDto> errors = new ArrayList<>();
+        String[] blocks = normalized.split("\\n\\s*\\n");
+
+        for (int i = 0; i < blocks.length; i++) {
+            String block = blocks[i].trim();
+            if (block.isBlank()) {
+                continue;
+            }
+
+            try {
+                questions.add(parseQuestionBlock(block));
+            } catch (BadRequestException exception) {
+                errors.add(new ApiDtos.QuestionImportErrorDto(i + 1, exception.getMessage(), block));
+            }
+        }
+
+        return new ImportParseResult(questions, errors);
+    }
+
+    private ImportedQuestionData parseQuestionBlock(String block) {
+        List<String> lines = block.lines()
+            .map(String::trim)
+            .filter(line -> !line.isBlank())
+            .toList();
+
+        Map<String, String> values = new LinkedHashMap<>();
+        Set<String> allowedKeys = Set.of("Q", "A", "B", "C", "D", "ANSWER");
+
+        for (String line : lines) {
+            int separatorIndex = line.indexOf(':');
+            if (separatorIndex < 1) {
+                throw new BadRequestException("Each line must use the format KEY: value");
+            }
+
+            String key = line.substring(0, separatorIndex).trim().toUpperCase();
+            String value = line.substring(separatorIndex + 1).trim();
+
+            if (!allowedKeys.contains(key)) {
+                throw new BadRequestException("Unsupported line prefix: " + key);
+            }
+            if (values.containsKey(key)) {
+                throw new BadRequestException("Duplicate line prefix: " + key);
+            }
+            if (value.isBlank()) {
+                throw new BadRequestException("Line " + key + " cannot be empty");
+            }
+
+            values.put(key, value);
+        }
+
+        List<String> requiredKeys = List.of("Q", "A", "B", "C", "D", "ANSWER");
+        for (String key : requiredKeys) {
+            if (!values.containsKey(key)) {
+                throw new BadRequestException("Missing required line: " + key + ":");
+            }
+        }
+
+        String correctLabel = values.get("ANSWER").trim().toUpperCase();
+        if (!Set.of("A", "B", "C", "D").contains(correctLabel)) {
+            throw new BadRequestException("ANSWER must be one of A, B, C, or D");
+        }
+
+        return new ImportedQuestionData(
+            values.get("Q").trim(),
+            List.of(
+                new ApiDtos.OptionPayload("A", values.get("A").trim(), "A".equals(correctLabel)),
+                new ApiDtos.OptionPayload("B", values.get("B").trim(), "B".equals(correctLabel)),
+                new ApiDtos.OptionPayload("C", values.get("C").trim(), "C".equals(correctLabel)),
+                new ApiDtos.OptionPayload("D", values.get("D").trim(), "D".equals(correctLabel))
+            )
+        );
+    }
+
+    private record ImportedQuestionData(String content, List<ApiDtos.OptionPayload> options) {
+    }
+
+    private record ImportParseResult(
+        List<ImportedQuestionData> questions,
+        List<ApiDtos.QuestionImportErrorDto> errors
+    ) {
     }
 }

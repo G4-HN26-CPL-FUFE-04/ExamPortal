@@ -2,15 +2,12 @@ package com.examportal.backend.config;
 
 import com.examportal.backend.entity.Role;
 import com.examportal.backend.entity.Subject;
-import com.examportal.backend.entity.Topic;
 import com.examportal.backend.entity.User;
 import com.examportal.backend.entity.enums.RoleName;
 import com.examportal.backend.entity.enums.UserStatus;
 import com.examportal.backend.repository.RoleRepository;
 import com.examportal.backend.repository.SubjectRepository;
-import com.examportal.backend.repository.TopicRepository;
 import com.examportal.backend.repository.UserRepository;
-import com.examportal.backend.service.PortalService;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -20,8 +17,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 public class DataInitializer {
     @Bean
     CommandLineRunner seedData(RoleRepository roleRepository, UserRepository userRepository,
-                               SubjectRepository subjectRepository, TopicRepository topicRepository,
-                               PasswordEncoder passwordEncoder, PortalService portalService) {
+                               SubjectRepository subjectRepository, PasswordEncoder passwordEncoder) {
         return args -> {
             for (RoleName roleName : RoleName.values()) {
                 roleRepository.findByName(roleName).orElseGet(() -> roleRepository.save(new Role(roleName)));
@@ -60,12 +56,6 @@ public class DataInitializer {
             subject.setDescription("Core Java and OOP");
             subject.setCreatedBy(instructor);
             subjectRepository.save(subject);
-
-            Topic topic = new Topic();
-            topic.setSubject(subject);
-            topic.setName("OOP");
-            topic.setDescription("Classes, objects, inheritance");
-            topicRepository.save(topic);
         };
     }
 }
