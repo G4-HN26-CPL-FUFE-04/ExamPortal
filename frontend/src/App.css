@@ -277,8 +277,16 @@ td {
   gap: 0.45rem;
 }
 
-.radio-inline input {
+.radio-inline input,
+.checkbox-inline input {
   width: auto;
+}
+
+.checkbox-inline {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-weight: 600;
 }
 
 .option-label {
@@ -300,6 +308,11 @@ td {
   border: 1px solid #dde6f1;
   border-radius: 18px;
   background: #fbfdff;
+}
+
+.selected-card {
+  border-color: #f4b942;
+  box-shadow: inset 0 0 0 1px rgba(244, 185, 66, 0.45);
 }
 
 .question-card h4 {
@@ -385,6 +398,88 @@ td {
 .correct-preview {
   background: #dbf4e2;
   color: #166b34;
+}
+
+.exam-management-layout {
+  align-items: start;
+}
+
+.draft-top-layout {
+  align-items: start;
+}
+
+.draft-list {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.draft-list-card {
+  cursor: pointer;
+}
+
+.draft-list-card-compact {
+  padding: 0.8rem 0.9rem;
+  gap: 0.55rem;
+}
+
+.draft-list-card-compact h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.draft-editor-placeholder {
+  min-height: 100%;
+}
+
+.draft-list-card:hover {
+  border-color: #c7d8ea;
+}
+
+.exam-bank-panel {
+  min-height: 36rem;
+}
+
+.question-bank-list {
+  display: grid;
+  gap: 0.65rem;
+  max-height: 22rem;
+  overflow: auto;
+  flex: 1;
+}
+
+.exam-bank-panel .question-bank-list {
+  min-height: 22rem;
+}
+
+.question-bank-item {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.75rem;
+  align-items: start;
+  padding: 0.85rem 0.95rem;
+  border-radius: 14px;
+  background: #edf3fa;
+}
+
+.question-bank-item input {
+  width: auto;
+  margin-top: 0.2rem;
+}
+
+.inline-number-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-weight: 600;
+}
+
+.inline-number-field input {
+  width: 5rem;
+}
+
+.action-row-end {
+  justify-content: flex-end;
+  margin-top: auto;
 }
 
 @media (max-width: 960px) {

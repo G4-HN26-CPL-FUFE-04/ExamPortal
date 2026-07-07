@@ -22,6 +22,7 @@ function Shell({ auth, setAuth }) {
       { to: '/admin/users', label: 'Users' },
       { to: '/admin/subjects', label: 'Subjects' },
       { to: '/questions', label: 'Questions' },
+      { to: '/draft', label: 'Drafts' },
       { to: '/admin/exams', label: 'Exams' },
       { to: '/admin/exam-sessions', label: 'Exam Sessions' },
       { to: '/admin/results', label: 'Results' },

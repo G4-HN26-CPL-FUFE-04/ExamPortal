@@ -16,23 +16,17 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @Entity
-@Table(name = "attempt_answers")
-public class AttemptAnswer {
+@Table(name = "exam_session_question_options")
+public class ExamSessionQuestionOption {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "attempt_id")
-    private Attempt attempt;
-
-    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "exam_session_question_id")
     private ExamSessionQuestion examSessionQuestion;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "selected_session_option_id")
-    private ExamSessionQuestionOption selectedOption;
-
+    private String optionLabel;
+    private String optionContent;
     private boolean isCorrect;
 }

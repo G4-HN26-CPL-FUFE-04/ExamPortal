@@ -9,6 +9,8 @@ GO
 
 IF OBJECT_ID(N'attempt_answers', N'U') IS NOT NULL DROP TABLE attempt_answers;
 IF OBJECT_ID(N'attempts', N'U') IS NOT NULL DROP TABLE attempts;
+IF OBJECT_ID(N'exam_session_question_options', N'U') IS NOT NULL DROP TABLE exam_session_question_options;
+IF OBJECT_ID(N'exam_session_questions', N'U') IS NOT NULL DROP TABLE exam_session_questions;
 IF OBJECT_ID(N'exam_sessions', N'U') IS NOT NULL DROP TABLE exam_sessions;
 IF OBJECT_ID(N'exam_questions', N'U') IS NOT NULL DROP TABLE exam_questions;
 IF OBJECT_ID(N'question_options', N'U') IS NOT NULL DROP TABLE question_options;
@@ -70,10 +72,9 @@ CREATE TABLE exams (
     title NVARCHAR(255) NOT NULL,
     description NVARCHAR(1000) NULL,
     subject_id BIGINT NOT NULL,
-    duration_minutes INT NOT NULL,
-    total_score FLOAT NOT NULL,
-    status NVARCHAR(50) NOT NULL,
+    required_question_count INT NOT NULL,
     show_answers_after_submit BIT NOT NULL,
+    published BIT NOT NULL DEFAULT 0,
     created_by BIGINT NULL,
     created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
     updated_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
@@ -106,6 +107,24 @@ CREATE TABLE exam_sessions (
     CONSTRAINT fk_exam_sessions_created_by FOREIGN KEY (created_by) REFERENCES users(id)
 );
 
+CREATE TABLE exam_session_questions (
+    id BIGINT IDENTITY(1,1) PRIMARY KEY,
+    exam_session_id BIGINT NOT NULL,
+    source_question_id BIGINT NULL,
+    content NVARCHAR(MAX) NOT NULL,
+    display_order INT NOT NULL,
+    CONSTRAINT fk_exam_session_questions_session FOREIGN KEY (exam_session_id) REFERENCES exam_sessions(id)
+);
+
+CREATE TABLE exam_session_question_options (
+    id BIGINT IDENTITY(1,1) PRIMARY KEY,
+    exam_session_question_id BIGINT NOT NULL,
+    option_label NVARCHAR(1) NOT NULL,
+    option_content NVARCHAR(MAX) NOT NULL,
+    is_correct BIT NOT NULL,
+    CONSTRAINT fk_exam_session_question_options_question FOREIGN KEY (exam_session_question_id) REFERENCES exam_session_questions(id)
+);
+
 CREATE TABLE attempts (
     id BIGINT IDENTITY(1,1) PRIMARY KEY,
     exam_session_id BIGINT NOT NULL,
@@ -126,11 +145,11 @@ CREATE TABLE attempts (
 CREATE TABLE attempt_answers (
     id BIGINT IDENTITY(1,1) PRIMARY KEY,
     attempt_id BIGINT NOT NULL,
-    question_id BIGINT NOT NULL,
-    selected_option_id BIGINT NULL,
+    exam_session_question_id BIGINT NOT NULL,
+    selected_session_option_id BIGINT NULL,
     is_correct BIT NOT NULL,
     CONSTRAINT fk_attempt_answers_attempt FOREIGN KEY (attempt_id) REFERENCES attempts(id),
-    CONSTRAINT fk_attempt_answers_question FOREIGN KEY (question_id) REFERENCES questions(id),
-    CONSTRAINT fk_attempt_answers_selected_option FOREIGN KEY (selected_option_id) REFERENCES question_options(id)
+    CONSTRAINT fk_attempt_answers_session_question FOREIGN KEY (exam_session_question_id) REFERENCES exam_session_questions(id),
+    CONSTRAINT fk_attempt_answers_selected_option FOREIGN KEY (selected_session_option_id) REFERENCES exam_session_question_options(id)
 );
 GO

@@ -509,19 +509,726 @@ function QuestionDetailsLoader({ questionId }) {
   )
 }
 
-export function ExamsPage() {
+const emptyExamForm = {
+  title: '',
+  subjectId: '',
+  requiredQuestionCount: 10,
+}
+
+function ExamEditor({ form, subjects, busy, editingId, onChange, onSubmit, onCancel }) {
+  return (
+    <form className="panel stack" onSubmit={onSubmit}>
+      <div className="row-between wrap-row">
+        <div>
+          <h3>{editingId ? 'Edit draft' : 'Create draft'}</h3>
+          <p className="muted">Drafts store the question set that you will publish later.</p>
+        </div>
+        <button type="button" className="ghost-button" onClick={onCancel}>
+          Cancel
+        </button>
+      </div>
+
+      <label>
+        Title
+        <input value={form.title} onChange={(event) => onChange('title', event.target.value)} required />
+      </label>
+
+      <div className="two-column">
+        <label>
+          Subject
+          <select value={form.subjectId} onChange={(event) => onChange('subjectId', event.target.value)} required>
+            <option value="">Choose subject</option>
+            {subjects.map((subject) => (
+              <option key={subject.id} value={subject.id}>{subject.name}</option>
+            ))}
+          </select>
+        </label>
+
+        <label>
+          Required questions
+          <input
+            type="number"
+            min="1"
+            value={form.requiredQuestionCount}
+            onChange={(event) => onChange('requiredQuestionCount', event.target.value)}
+            required
+          />
+        </label>
+      </div>
+
+      <button type="submit" className="primary-button" disabled={busy}>
+        {busy ? 'Saving...' : editingId ? 'Update draft' : 'Create draft'}
+      </button>
+    </form>
+  )
+}
+
+export function DraftsPage() {
   const [exams, setExams] = useState([])
+  const [subjects, setSubjects] = useState([])
+  const [subjectQuestions, setSubjectQuestions] = useState([])
+  const [selectedExamId, setSelectedExamId] = useState(null)
+  const [selectedExamDetail, setSelectedExamDetail] = useState(null)
+  const [form, setForm] = useState(emptyExamForm)
+  const [showCreateForm, setShowCreateForm] = useState(false)
+  const [editingExamId, setEditingExamId] = useState(null)
+  const [selectedQuestionIds, setSelectedQuestionIds] = useState([])
+  const [selectedExamQuestionIds, setSelectedExamQuestionIds] = useState([])
+  const [bankKeyword, setBankKeyword] = useState('')
+  const [examQuestionKeyword, setExamQuestionKeyword] = useState('')
+  const [randomCount, setRandomCount] = useState(1)
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState('')
+  const [error, setError] = useState('')
+
+  const normalizeExam = (exam) => ({
+    ...exam,
+    requiredQuestionCount: Number(exam.requiredQuestionCount ?? exam.questionCount ?? 0),
+    questionCount: Number(exam.questionCount ?? exam.questions?.length ?? 0),
+    published: Boolean(exam.published),
+    questions: exam.questions || [],
+  })
+
+  const selectedExam = useMemo(() => {
+    if (!selectedExamId) return null
+    if (selectedExamDetail?.id === selectedExamId) {
+      return normalizeExam(selectedExamDetail)
+    }
+    return exams.find((exam) => exam.id === selectedExamId) || null
+  }, [exams, selectedExamId, selectedExamDetail])
+
+  const availableQuestions = useMemo(() => {
+    if (!selectedExam) return []
+    const usedIds = new Set((selectedExam.questions || []).map((question) => question.questionId))
+    return subjectQuestions.filter((question) => !usedIds.has(question.id))
+  }, [selectedExam, subjectQuestions])
+
+  const getExamQuestionKey = (question, index = 0) => question.id ?? `${question.questionId}-${question.displayOrder}-${index}`
 
   useEffect(() => {
-    api.get('/exams').then(({ data }) => setExams(data))
+    setSelectedQuestionIds((current) => current.filter((id) => availableQuestions.some((question) => question.id === id)))
+  }, [availableQuestions])
+
+  useEffect(() => {
+    setSelectedExamQuestionIds((current) => current.filter((id) => selectedExam?.questions?.some((question) => question.id === id)))
+  }, [selectedExam])
+
+  const filteredBankQuestions = useMemo(() => {
+    const keyword = bankKeyword.trim().toLowerCase()
+    if (!keyword) return availableQuestions
+    return availableQuestions.filter((question) => question.content.toLowerCase().includes(keyword))
+  }, [availableQuestions, bankKeyword])
+
+  const filteredExamQuestions = useMemo(() => {
+    const keyword = examQuestionKeyword.trim().toLowerCase()
+    const examQuestions = selectedExam?.questions || []
+    if (!keyword) return examQuestions
+    return examQuestions.filter((question) => question.content.toLowerCase().includes(keyword))
+  }, [selectedExam, examQuestionKeyword])
+
+  const remainingSlots = Math.max((selectedExam?.requiredQuestionCount || 0) - (selectedExam?.questionCount || 0), 0)
+
+  const loadExams = async (preferredExamId = selectedExamId) => {
+    const { data } = await api.get('/drafts')
+    const normalizedExams = data.map(normalizeExam)
+    setExams(normalizedExams)
+    if (!normalizedExams.length) {
+      setSelectedExamId(null)
+      return
+    }
+
+    const hasPreferred = preferredExamId && normalizedExams.some((exam) => exam.id === preferredExamId)
+    setSelectedExamId(hasPreferred ? preferredExamId : normalizedExams[0].id)
+  }
+
+  const loadSubjects = async () => {
+    const { data } = await api.get('/subjects')
+    setSubjects(data)
+  }
+
+  useEffect(() => {
+    Promise.all([loadExams(), loadSubjects()]).catch(() => {
+      setError('Unable to load draft management data.')
+    })
   }, [])
 
+  useEffect(() => {
+    if (!selectedExam?.subjectId) {
+      setSubjectQuestions([])
+      setSelectedQuestionIds([])
+      setSelectedExamQuestionIds([])
+      return
+    }
+
+    api.get('/questions', { params: { subjectId: selectedExam.subjectId } })
+      .then(({ data }) => {
+        setSubjectQuestions(data)
+      })
+      .catch(() => {
+        setSubjectQuestions([])
+        setSelectedQuestionIds([])
+        setSelectedExamQuestionIds([])
+      })
+  }, [selectedExam?.id, selectedExam?.subjectId])
+
+  useEffect(() => {
+    setSelectedQuestionIds([])
+    setSelectedExamQuestionIds([])
+    setBankKeyword('')
+    setExamQuestionKeyword('')
+  }, [selectedExam?.id])
+
+  useEffect(() => {
+    if (!selectedExamId) {
+      setSelectedExamDetail(null)
+      return
+    }
+
+    api.get(`/drafts/${selectedExamId}`)
+      .then(({ data }) => setSelectedExamDetail(normalizeExam(data)))
+      .catch(() => setSelectedExamDetail(null))
+  }, [selectedExamId])
+
+  const updateForm = (key, value) => {
+    setForm((prev) => ({ ...prev, [key]: value }))
+  }
+
+  const resetForm = () => {
+    setForm(emptyExamForm)
+    setEditingExamId(null)
+    setShowCreateForm(false)
+  }
+
+  const beginCreate = () => {
+    setError('')
+    setMessage('')
+    setForm(emptyExamForm)
+    setEditingExamId(null)
+    setShowCreateForm(true)
+  }
+
+  const beginEdit = (exam) => {
+    setError('')
+    setMessage('')
+    setShowCreateForm(false)
+    setEditingExamId(exam.id)
+    setForm({
+      title: exam.title,
+      subjectId: String(exam.subjectId),
+      requiredQuestionCount: exam.requiredQuestionCount || exam.questionCount || 1,
+    })
+  }
+
+  const handleSubmitExam = async (event) => {
+    event.preventDefault()
+    setBusy(true)
+    setError('')
+    setMessage('')
+    try {
+      const payload = {
+        title: form.title.trim(),
+        subjectId: Number(form.subjectId),
+        requiredQuestionCount: Number(form.requiredQuestionCount),
+      }
+
+      if (editingExamId) {
+        await api.put(`/drafts/${editingExamId}`, payload)
+        setMessage('Draft updated.')
+        await loadExams(editingExamId)
+      } else {
+        const { data } = await api.post('/drafts', payload)
+        setMessage('Draft created.')
+        await loadExams(data.id)
+      }
+      resetForm()
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || 'Unable to save draft.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handleDeleteExam = async (examId) => {
+    if (!window.confirm('Delete this exam?')) return
+    setError('')
+    setMessage('')
+    try {
+      await api.delete(`/drafts/${examId}`)
+      setMessage('Draft deleted.')
+      setSelectedExamDetail(null)
+      await loadExams(selectedExamId === examId ? null : selectedExamId)
+      if (editingExamId === examId) resetForm()
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || 'Unable to delete draft.')
+    }
+  }
+
+  const handleToggleQuestion = (questionId) => {
+    setSelectedQuestionIds((current) => (
+      current.includes(questionId)
+        ? current.filter((id) => id !== questionId)
+        : [...current, questionId]
+    ))
+  }
+
+  const handleToggleExamQuestion = (examQuestionId) => {
+    setSelectedExamQuestionIds((current) => (
+      current.includes(examQuestionId)
+        ? current.filter((id) => id !== examQuestionId)
+        : [...current, examQuestionId]
+    ))
+  }
+
+  const handleSelectAllExamQuestions = () => {
+    setSelectedExamQuestionIds(filteredExamQuestions.map((question) => question.id))
+  }
+
+  const handleSelectAllBankQuestions = () => {
+    setSelectedQuestionIds(filteredBankQuestions.map((question) => question.id))
+  }
+
+  const handleAddSelectedQuestions = async (questionIds = selectedQuestionIds) => {
+    if (!selectedExam || !questionIds.length) return
+    if (questionIds.length > remainingSlots) {
+      setError(`You can only add ${remainingSlots} more question(s) to this draft.`)
+      return
+    }
+    setBusy(true)
+    setError('')
+    setMessage('')
+    try {
+      try {
+        await api.post(`/drafts/${selectedExam.id}/questions/bulk`, {
+          questionIds,
+        })
+      } catch (requestError) {
+        const status = requestError.response?.status
+        if (status !== 404 && status !== 405) {
+          throw requestError
+        }
+        for (const questionId of questionIds) {
+          await api.post(`/drafts/${selectedExam.id}/questions`, {
+            questionId,
+            displayOrder: 1,
+          })
+        }
+      }
+      setSelectedQuestionIds([])
+      setMessage(`${questionIds.length} question(s) added to draft.`)
+      await loadExams(selectedExam.id)
+      const { data } = await api.get(`/drafts/${selectedExam.id}`)
+      setSelectedExamDetail(normalizeExam(data))
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || 'Unable to add selected questions.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handleRandomizeQuestions = async () => {
+    if (!selectedExam) return
+    const pool = availableQuestions
+    const maxCount = Math.min(Number(randomCount) || 0, pool.length, remainingSlots)
+    if (maxCount < 1) {
+      setError('No available questions to randomize.')
+      return
+    }
+
+    const shuffled = [...pool]
+    for (let index = shuffled.length - 1; index > 0; index -= 1) {
+      const swapIndex = Math.floor(Math.random() * (index + 1))
+      ;[shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]]
+    }
+    const pickedIds = shuffled.slice(0, maxCount).map((question) => question.id)
+    if (!pickedIds.length) {
+      setError('No available questions to randomize.')
+      return
+    }
+
+    setSelectedQuestionIds(pickedIds)
+    setMessage('Questions randomized. Review the checked questions, then add selected.')
+  }
+
+  const handleRemoveSelectedQuestions = async (examQuestionIds = selectedExamQuestionIds) => {
+    if (!selectedExam || !examQuestionIds.length) return
+    setBusy(true)
+    setError('')
+    setMessage('')
+    try {
+      for (const examQuestionId of examQuestionIds) {
+        await api.delete(`/drafts/${selectedExam.id}/questions/${examQuestionId}`)
+      }
+      setSelectedExamQuestionIds([])
+      setMessage(`${examQuestionIds.length} question(s) removed from draft.`)
+      await loadExams(selectedExam.id)
+      const { data } = await api.get(`/drafts/${selectedExam.id}`)
+      setSelectedExamDetail(normalizeExam(data))
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || 'Unable to remove selected questions.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
-    <PageSection title="Exam Management" description="Review exam status, duration, score configuration, and question count.">
-      <DataTable
-        columns={['Title', 'Subject', 'Duration', 'Total Score', 'Status', 'Questions']}
-        rows={exams.map((exam) => [exam.title, exam.subjectName, `${exam.durationMinutes} min`, exam.totalScore, exam.status, exam.questionCount])}
-      />
+    <PageSection title="Draft Management" description="Create draft question sets and prepare them for publishing later.">
+      <div className="stack">
+        <div className="two-column draft-top-layout">
+          <div className="panel stack">
+            <div className="row-between wrap-row">
+              <div>
+                <h3>Draft list</h3>
+                <p className="muted">Select a draft to manage its questions.</p>
+              </div>
+              <button type="button" className="primary-button" onClick={beginCreate}>
+                Create draft
+              </button>
+            </div>
+
+            {error ? <p className="error-text">{error}</p> : null}
+            {message ? <p className="success-text">{message}</p> : null}
+
+            <div className="draft-list">
+              {exams.map((exam) => (
+                <article
+                  key={exam.id}
+                  className={selectedExamId === exam.id ? 'question-card selected-card draft-list-card draft-list-card-compact' : 'question-card draft-list-card draft-list-card-compact'}
+                  onClick={() => {
+                    setSelectedExamId(exam.id)
+                    beginEdit(exam)
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault()
+                      setSelectedExamId(exam.id)
+                      beginEdit(exam)
+                    }
+                  }}
+                >
+                  <div className="row-between wrap-row">
+                    <div>
+                      <h3>{exam.title}</h3>
+                      <p className="muted">{exam.subjectName}</p>
+                    </div>
+                    <div className="action-row">
+                      <span className="muted">{exam.questionCount} / {exam.requiredQuestionCount} questions</span>
+                      {exam.published ? <span className="pill">Published</span> : null}
+                      <button
+                        type="button"
+                        className="icon-button danger-icon-button"
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          handleDeleteExam(exam.id)
+                        }}
+                        disabled={busy}
+                        aria-label={`Delete ${exam.title}`}
+                      >
+                        x
+                      </button>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+
+            {!exams.length ? <p className="muted">No drafts yet. Create the first draft to get started.</p> : null}
+          </div>
+
+          {showCreateForm || editingExamId ? (
+            <ExamEditor
+              form={form}
+              subjects={subjects}
+              busy={busy}
+              editingId={editingExamId}
+              onChange={updateForm}
+              onSubmit={handleSubmitExam}
+              onCancel={resetForm}
+            />
+          ) : (
+            <div className="panel stack draft-editor-placeholder">
+              <h3>Edit draft</h3>
+              <p className="muted">Select a draft card or create a new draft to edit it here.</p>
+            </div>
+          )}
+        </div>
+
+        {selectedExam ? (
+          <div className="stack">
+            <div className="two-column exam-management-layout">
+              <div className="panel stack exam-bank-panel">
+                <div className="row-between wrap-row">
+                  <h3>Exam question list</h3>
+                  <span className="muted">{selectedExam.questionCount} / {selectedExam.requiredQuestionCount} questions</span>
+                </div>
+
+                <label>
+                  Search exam questions
+                  <input
+                    value={examQuestionKeyword}
+                    onChange={(event) => setExamQuestionKeyword(event.target.value)}
+                    placeholder="Search question text"
+                  />
+                </label>
+
+                <div className="question-bank-list">
+                  {filteredExamQuestions.map((question, index) => (
+                    <label key={getExamQuestionKey(question, index)} className="question-bank-item">
+                      <input
+                        type="checkbox"
+                        checked={selectedExamQuestionIds.includes(question.id)}
+                        onChange={() => handleToggleExamQuestion(question.id)}
+                        disabled={busy}
+                      />
+                      <span>{question.content}</span>
+                    </label>
+                  ))}
+                </div>
+
+                <div className="action-row">
+                  <button
+                    type="button"
+                    className="ghost-button"
+                    onClick={handleSelectAllExamQuestions}
+                    disabled={busy || !filteredExamQuestions.length}
+                  >
+                    Select all
+                  </button>
+                  <button
+                    type="button"
+                    className="ghost-button"
+                    onClick={() => setSelectedExamQuestionIds([])}
+                    disabled={busy || !selectedExamQuestionIds.length}
+                  >
+                    Clear selected
+                  </button>
+                  
+                </div>
+                <div>
+                  <span className="muted">{selectedExamQuestionIds.length} selected</span>
+                <div className="action-row action-row-end">
+                  <button
+                    type="button"
+                    className="danger-button ghost-button"
+                    onClick={() => handleRemoveSelectedQuestions()}
+                    disabled={busy || !selectedExamQuestionIds.length}
+                  >
+                    Remove selected
+                  </button>
+                  
+                </div>
+                </div>
+                  
+
+                {!selectedExam.questions?.length ? <p className="muted">This draft has no questions yet.</p> : null}
+              </div>
+
+              <div className="panel stack exam-bank-panel">
+                <div className="row-between wrap-row">
+                  <div>
+                    <h3>Question bank</h3>
+                  </div>
+                </div>
+
+                <label>
+                  Search bank
+                  <input
+                    value={bankKeyword}
+                    onChange={(event) => setBankKeyword(event.target.value)}
+                    placeholder="Search question text"
+                  />
+                </label>
+
+                <div className="question-bank-list">
+                  {filteredBankQuestions.map((question) => (
+                    <label key={question.id} className="question-bank-item">
+                      <input
+                        type="checkbox"
+                        checked={selectedQuestionIds.includes(question.id)}
+                        onChange={() => handleToggleQuestion(question.id)}
+                        disabled={busy}
+                      />
+                      <span>{question.content}</span>
+                    </label>
+                  ))}
+                </div>
+
+                <div className="action-row">
+                 
+                  <button
+                    type="button"
+                    className="ghost-button"
+                    onClick={() => handleRandomizeQuestions()}
+                    disabled={busy || !availableQuestions.length || remainingSlots < 1}
+                  >
+                    Random select
+                    
+                  </button>
+                  
+                  <label className="inline-number-field">
+
+                    <input
+                      type="number"
+                      min="1"
+                      value={randomCount}
+                      onChange={(event) => setRandomCount(event.target.value)}
+                      disabled={busy || remainingSlots < 1}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    className="ghost-button"
+                    onClick={() => setSelectedQuestionIds([])}
+                    disabled={busy || !selectedQuestionIds.length}
+                  >
+                    Clear selected
+                  </button>
+                </div>
+                <div>
+                  <span className="muted">{selectedQuestionIds.length} selected       | </span>
+                  <span className="muted">{remainingSlots} slots remaining</span>
+                  <div className="action-row action-row-end">
+                  
+                  <button
+                    type="button"
+                    className="primary-button"
+                    onClick={() => handleAddSelectedQuestions()}
+                    disabled={busy || !selectedQuestionIds.length || remainingSlots < 1}
+                  >
+                    Add selected
+                  </button>
+                </div>
+                </div>
+                  
+                
+
+                {!availableQuestions.length ? <p className="muted">All questions from this subject are already in the draft.</p> : null}
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </PageSection>
+  )
+}
+
+export function PublishedExamsPage() {
+  const [drafts, setDrafts] = useState([])
+  const [busyId, setBusyId] = useState(null)
+  const [message, setMessage] = useState('')
+  const [error, setError] = useState('')
+
+  const loadDrafts = async () => {
+    const { data } = await api.get('/drafts')
+    setDrafts(data)
+  }
+
+  useEffect(() => {
+    loadDrafts().catch(() => setError('Unable to load drafts for publishing.'))
+  }, [])
+
+  const handlePublishToggle = async (draft) => {
+    setBusyId(draft.id)
+    setError('')
+    setMessage('')
+    try {
+      if (draft.published) {
+        await api.patch(`/exams/${draft.id}/unpublish`)
+        setMessage('Draft unpublished.')
+      } else {
+        await api.patch(`/exams/${draft.id}/publish`)
+        setMessage('Draft published.')
+      }
+      await loadDrafts()
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || 'Unable to update publish state.')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const publishedDrafts = drafts.filter((draft) => draft.published)
+
+  return (
+    <PageSection title="Exam Publishing" description="Choose which drafts are published and ready for scheduling.">
+      <div className="stack">
+        <div className="panel stack">
+          <div>
+            <h3>Published exams</h3>
+            <p className="muted">{publishedDrafts.length} published draft(s).</p>
+          </div>
+          {publishedDrafts.length ? (
+            <div className="card-grid">
+              {publishedDrafts.map((draft) => (
+                <article key={draft.id} className="question-card selected-card">
+                  <div className="row-between wrap-row">
+                    <div>
+                      <h3>{draft.title}</h3>
+                      <p className="muted">{draft.subjectName}</p>
+                    </div>
+                    <span className="pill">Published</span>
+                  </div>
+                  <p className="muted">{draft.description || 'No description'}</p>
+                  <div className="question-meta">
+                    <span>{draft.questionCount} / {draft.requiredQuestionCount} questions</span>
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <p className="muted">No published exams yet.</p>
+          )}
+        </div>
+
+        <div className="panel stack">
+          <div>
+            <h3>Drafts ready to publish</h3>
+            <p className="muted">A draft can be published when its current question count exactly matches the required question count.</p>
+          </div>
+
+          {error ? <p className="error-text">{error}</p> : null}
+          {message ? <p className="success-text">{message}</p> : null}
+
+          <div className="card-grid">
+            {drafts.map((draft) => {
+              const isReady = draft.questionCount === draft.requiredQuestionCount && draft.questionCount > 0
+              const isBusy = busyId === draft.id
+
+              return (
+                <article key={draft.id} className={draft.published ? 'question-card selected-card' : 'question-card'}>
+                  <div className="row-between wrap-row">
+                    <div>
+                      <h3>{draft.title}</h3>
+                      <p className="muted">{draft.subjectName}</p>
+                    </div>
+                    {draft.published ? <span className="pill">Published</span> : null}
+                  </div>
+                  <p className="muted">{draft.description || 'No description'}</p>
+                  <div className="question-meta">
+                    <span>{draft.questionCount} / {draft.requiredQuestionCount} questions</span>
+                  </div>
+                  {!draft.published && !isReady ? (
+                    <p className="error-text">This draft is not ready to publish yet.</p>
+                  ) : null}
+                  <div className="action-row">
+                    <button
+                      type="button"
+                      className={draft.published ? 'ghost-button' : 'primary-button'}
+                      onClick={() => handlePublishToggle(draft)}
+                      disabled={isBusy || (!draft.published && !isReady)}
+                    >
+                      {isBusy ? 'Saving...' : draft.published ? 'Unpublish' : 'Publish'}
+                    </button>
+                  </div>
+                </article>
+              )
+            })}
+          </div>
+
+          {!drafts.length ? <p className="muted">No drafts available.</p> : null}
+        </div>
+      </div>
     </PageSection>
   )
 }

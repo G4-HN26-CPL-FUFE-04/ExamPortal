@@ -1,7 +1,6 @@
 package com.examportal.backend.dto;
 
 import com.examportal.backend.entity.enums.AttemptStatus;
-import com.examportal.backend.entity.enums.ExamStatus;
 import com.examportal.backend.entity.enums.RoleName;
 import com.examportal.backend.entity.enums.SessionStatus;
 import com.examportal.backend.entity.enums.UserStatus;
@@ -100,16 +99,25 @@ public final class ApiDtos {
     public record SubjectDto(Long id, String name, String description) {
     }
 
-    public record ExamPayload(@NotBlank String title, String description, @NotNull Long subjectId, @Positive int durationMinutes,
-                              @Positive double totalScore, @NotNull ExamStatus status, boolean showAnswersAfterSubmit) {
+    public record ExamPayload(@NotBlank String title, String description, @NotNull Long subjectId,
+                              @Positive int requiredQuestionCount, boolean showAnswersAfterSubmit) {
     }
 
     public record ExamQuestionPayload(@NotNull Long questionId, @Positive int displayOrder) {
     }
 
+    public record ExamBulkQuestionPayload(@NotEmpty List<Long> questionIds) {
+    }
+
+    public record ExamQuestionDto(Long id, Long questionId, String content, int displayOrder) {
+    }
+
+    public record ExamQuestionReorderPayload(@NotEmpty List<Long> examQuestionIds) {
+    }
+
     public record ExamDto(Long id, String title, String description, Long subjectId, String subjectName,
-                          int durationMinutes, double totalScore, ExamStatus status,
-                          boolean showAnswersAfterSubmit, int questionCount) {
+                          int requiredQuestionCount, boolean showAnswersAfterSubmit, boolean published,
+                          int questionCount, List<ExamQuestionDto> questions) {
     }
 
     public record ExamSessionPayload(@NotNull Long examId, @NotBlank String title, @NotNull LocalDateTime openTime,

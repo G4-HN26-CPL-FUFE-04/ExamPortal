@@ -6,4 +6,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface AttemptAnswerRepository extends JpaRepository<AttemptAnswer, Long> {
     List<AttemptAnswer> findByAttempt_Id(Long attemptId);
+    List<AttemptAnswer> findByAttempt_IdIn(List<Long> attemptIds);
 }

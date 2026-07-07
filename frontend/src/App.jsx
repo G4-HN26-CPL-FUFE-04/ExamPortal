@@ -19,7 +19,8 @@ import {
   SubjectsPage,
   QuestionsHomePage,
   SubjectQuestionBankPage,
-  ExamsPage,
+  DraftsPage,
+  PublishedExamsPage,
   AdminSessionsPage,
   ResultsMonitorPage,
   StatisticsPage,
@@ -85,8 +86,12 @@ function App() {
           element={<RoleRoute auth={auth} roles={['ADMIN', 'INSTRUCTOR']}><SubjectQuestionBankPage /></RoleRoute>}
         />
         <Route
+          path="draft"
+          element={<RoleRoute auth={auth} roles={['ADMIN', 'INSTRUCTOR']}><DraftsPage /></RoleRoute>}
+        />
+        <Route
           path="admin/exams"
-          element={<RoleRoute auth={auth} roles={['ADMIN', 'INSTRUCTOR']}><ExamsPage /></RoleRoute>}
+          element={<RoleRoute auth={auth} roles={['ADMIN', 'INSTRUCTOR']}><PublishedExamsPage /></RoleRoute>}
         />
         <Route
           path="admin/exam-sessions"

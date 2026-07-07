@@ -1,9 +1,6 @@
 package com.examportal.backend.entity;
 
-import com.examportal.backend.entity.enums.ExamStatus;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -34,13 +31,9 @@ public class Exam {
     @JoinColumn(name = "subject_id")
     private Subject subject;
 
-    private int durationMinutes;
-    private double totalScore;
-
-    @Enumerated(EnumType.STRING)
-    private ExamStatus status;
-
+    private int requiredQuestionCount;
     private boolean showAnswersAfterSubmit;
+    private boolean published;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by")

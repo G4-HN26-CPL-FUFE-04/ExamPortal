@@ -6,6 +6,8 @@ import com.examportal.backend.entity.AttemptAnswer;
 import com.examportal.backend.entity.Exam;
 import com.examportal.backend.entity.ExamQuestion;
 import com.examportal.backend.entity.ExamSession;
+import com.examportal.backend.entity.ExamSessionQuestion;
+import com.examportal.backend.entity.ExamSessionQuestionOption;
 import com.examportal.backend.entity.Question;
 import com.examportal.backend.entity.QuestionOption;
 import com.examportal.backend.entity.Role;
@@ -22,6 +24,8 @@ import com.examportal.backend.repository.AttemptRepository;
 import com.examportal.backend.repository.ExamQuestionRepository;
 import com.examportal.backend.repository.ExamRepository;
 import com.examportal.backend.repository.ExamSessionRepository;
+import com.examportal.backend.repository.ExamSessionQuestionOptionRepository;
+import com.examportal.backend.repository.ExamSessionQuestionRepository;
 import com.examportal.backend.repository.QuestionOptionRepository;
 import com.examportal.backend.repository.QuestionRepository;
 import com.examportal.backend.repository.RoleRepository;
@@ -39,6 +43,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -58,6 +63,8 @@ public class PortalService {
     private final ExamRepository examRepository;
     private final ExamQuestionRepository examQuestionRepository;
     private final ExamSessionRepository examSessionRepository;
+    private final ExamSessionQuestionRepository examSessionQuestionRepository;
+    private final ExamSessionQuestionOptionRepository examSessionQuestionOptionRepository;
     private final AttemptRepository attemptRepository;
     private final AttemptAnswerRepository attemptAnswerRepository;
     private final PasswordEncoder passwordEncoder;
@@ -68,6 +75,8 @@ public class PortalService {
                          QuestionRepository questionRepository,
                          QuestionOptionRepository questionOptionRepository, ExamRepository examRepository,
                          ExamQuestionRepository examQuestionRepository, ExamSessionRepository examSessionRepository,
+                         ExamSessionQuestionRepository examSessionQuestionRepository,
+                         ExamSessionQuestionOptionRepository examSessionQuestionOptionRepository,
                          AttemptRepository attemptRepository, AttemptAnswerRepository attemptAnswerRepository,
                          PasswordEncoder passwordEncoder, AuthenticationManager authenticationManager,
                          JwtService jwtService) {
@@ -79,6 +88,8 @@ public class PortalService {
         this.examRepository = examRepository;
         this.examQuestionRepository = examQuestionRepository;
         this.examSessionRepository = examSessionRepository;
+        this.examSessionQuestionRepository = examSessionQuestionRepository;
+        this.examSessionQuestionOptionRepository = examSessionQuestionOptionRepository;
         this.attemptRepository = attemptRepository;
         this.attemptAnswerRepository = attemptAnswerRepository;
         this.passwordEncoder = passwordEncoder;
@@ -267,47 +278,162 @@ public class PortalService {
         questionRepository.delete(findQuestion(id));
     }
 
-    public List<ApiDtos.ExamDto> getExams() {
+    public List<ApiDtos.ExamDto> getDrafts() {
         return examRepository.findAll().stream().map(this::toExamDto).toList();
     }
 
-    public ApiDtos.ExamDto getExam(Long id) {
+    public List<ApiDtos.ExamDto> getPublishedExams() {
+        return examRepository.findByPublishedTrue().stream().map(this::toExamDto).toList();
+    }
+
+    public ApiDtos.ExamDto getDraft(Long id) {
         return toExamDto(findExam(id));
     }
 
-    public ApiDtos.ExamDto saveExam(ApiDtos.ExamPayload payload, Long id) {
+    public ApiDtos.ExamDto saveDraft(ApiDtos.ExamPayload payload, Long id) {
         Exam exam = id == null ? new Exam() : findExam(id);
+        ensureExamEditable(exam);
+        if (id != null && !exam.getSubject().getId().equals(payload.subjectId())
+            && examQuestionRepository.countByExam_Id(id) > 0) {
+            throw new BadRequestException("Cannot change subject while the exam still contains questions");
+        }
+        long questionCount = id == null ? 0 : examQuestionRepository.countByExam_Id(id);
+        if (id != null && payload.requiredQuestionCount() < questionCount) {
+            throw new BadRequestException("Required question count cannot be less than the current draft question count");
+        }
         exam.setTitle(payload.title());
         exam.setDescription(payload.description());
         exam.setSubject(findSubject(payload.subjectId()));
-        exam.setDurationMinutes(payload.durationMinutes());
-        exam.setTotalScore(payload.totalScore());
-        exam.setStatus(payload.status());
+        exam.setRequiredQuestionCount(payload.requiredQuestionCount());
         exam.setShowAnswersAfterSubmit(payload.showAnswersAfterSubmit());
         if (exam.getCreatedBy() == null) {
             exam.setCreatedBy(getCurrentUser());
         }
-        if (payload.status().name().equals("PUBLISHED") && id != null && examQuestionRepository.countByExam_Id(id) < 1) {
-            throw new BadRequestException("Exam must contain at least 1 question before publish");
+        if (id == null) {
+            exam.setPublished(false);
         }
         return toExamDto(examRepository.save(exam));
     }
 
+    public ApiDtos.ExamDto publishExam(Long id) {
+        Exam exam = findExam(id);
+        ensureExamEditable(exam);
+        long questionCount = examQuestionRepository.countByExam_Id(id);
+        if (questionCount < 1) {
+            throw new BadRequestException("Draft must contain at least 1 question before publish");
+        }
+        if (questionCount != exam.getRequiredQuestionCount()) {
+            throw new BadRequestException("Draft question count must exactly match the required question count before publish");
+        }
+        exam.setPublished(true);
+        return toExamDto(examRepository.save(exam));
+    }
+
+    public ApiDtos.ExamDto unpublishExam(Long id) {
+        Exam exam = findExam(id);
+        ensureExamEditable(exam);
+        exam.setPublished(false);
+        return toExamDto(examRepository.save(exam));
+    }
+
     public void deleteExam(Long id) {
-        examRepository.delete(findExam(id));
+        Exam exam = findExam(id);
+        ensureExamEditable(exam);
+        deleteExamDependencies(id);
+        examRepository.delete(exam);
     }
 
     public ApiDtos.ExamDto addQuestionToExam(Long examId, ApiDtos.ExamQuestionPayload payload) {
+        Exam exam = findExam(examId);
+        ensureExamEditable(exam);
+        ensureDraftHasCapacity(exam, 1);
+        Question question = findQuestion(payload.questionId());
+        if (!exam.getSubject().getId().equals(question.getSubject().getId())) {
+            throw new BadRequestException("Question subject must match exam subject");
+        }
+        if (examQuestionRepository.existsByExam_IdAndQuestion_Id(examId, payload.questionId())) {
+            throw new BadRequestException("Question already exists in this exam");
+        }
+
         ExamQuestion examQuestion = new ExamQuestion();
-        examQuestion.setExam(findExam(examId));
-        examQuestion.setQuestion(findQuestion(payload.questionId()));
-        examQuestion.setDisplayOrder(payload.displayOrder());
+        examQuestion.setExam(exam);
+        examQuestion.setQuestion(question);
+        examQuestion.setDisplayOrder((int) examQuestionRepository.countByExam_Id(examId) + 1);
         examQuestionRepository.save(examQuestion);
-        return getExam(examId);
+        return getDraft(examId);
+    }
+
+    public ApiDtos.ExamDto addQuestionsToExam(Long examId, ApiDtos.ExamBulkQuestionPayload payload) {
+        Exam exam = findExam(examId);
+        ensureExamEditable(exam);
+
+        List<ExamQuestion> existingQuestions = examQuestionRepository.findByExam_IdOrderByDisplayOrderAscIdAsc(examId);
+        Set<Long> existingQuestionIds = existingQuestions.stream()
+            .map(item -> item.getQuestion().getId())
+            .collect(Collectors.toSet());
+        AtomicInteger nextOrder = new AtomicInteger(existingQuestions.size() + 1);
+        long incomingUniqueCount = payload.questionIds().stream()
+            .filter(questionId -> !existingQuestionIds.contains(questionId))
+            .count();
+        ensureDraftHasCapacity(exam, incomingUniqueCount);
+
+        for (Long questionId : payload.questionIds()) {
+            if (existingQuestionIds.contains(questionId)) {
+                continue;
+            }
+
+            Question question = findQuestion(questionId);
+            if (!exam.getSubject().getId().equals(question.getSubject().getId())) {
+                throw new BadRequestException("Question subject must match exam subject");
+            }
+
+            ExamQuestion examQuestion = new ExamQuestion();
+            examQuestion.setExam(exam);
+            examQuestion.setQuestion(question);
+            examQuestion.setDisplayOrder(nextOrder.getAndIncrement());
+            examQuestionRepository.save(examQuestion);
+            existingQuestionIds.add(questionId);
+        }
+
+        return getDraft(examId);
     }
 
     public void removeQuestionFromExam(Long examId, Long questionId) {
-        examQuestionRepository.deleteByExam_IdAndQuestion_Id(examId, questionId);
+        ensureExamEditable(findExam(examId));
+        if (!examQuestionRepository.existsByIdAndExam_Id(questionId, examId)) {
+            throw new NotFoundException("Exam question not found");
+        }
+        examQuestionRepository.delete(examQuestionRepository.findByIdAndExam_Id(questionId, examId)
+            .orElseThrow(() -> new NotFoundException("Exam question not found")));
+        normalizeExamQuestionOrder(examId);
+    }
+
+    public ApiDtos.ExamDto reorderExamQuestions(Long examId, ApiDtos.ExamQuestionReorderPayload payload) {
+        ensureExamEditable(findExam(examId));
+        List<ExamQuestion> currentQuestions = examQuestionRepository.findByExam_IdOrderByDisplayOrderAscIdAsc(examId);
+        if (currentQuestions.size() != payload.examQuestionIds().size()) {
+            throw new BadRequestException("Reorder payload must include every exam question");
+        }
+        if (new HashSet<>(payload.examQuestionIds()).size() != payload.examQuestionIds().size()) {
+            throw new BadRequestException("Reorder payload contains duplicate questions");
+        }
+
+        Map<Long, ExamQuestion> questionMap = currentQuestions.stream()
+            .collect(Collectors.toMap(ExamQuestion::getId, item -> item));
+
+        for (Long examQuestionId : payload.examQuestionIds()) {
+            if (!questionMap.containsKey(examQuestionId)) {
+                throw new BadRequestException("Reorder payload contains a question outside this exam");
+            }
+        }
+
+        for (int index = 0; index < payload.examQuestionIds().size(); index++) {
+            ExamQuestion examQuestion = questionMap.get(payload.examQuestionIds().get(index));
+            examQuestion.setDisplayOrder(index + 1);
+        }
+
+        examQuestionRepository.saveAll(currentQuestions);
+        return getDraft(examId);
     }
 
     public List<ApiDtos.ExamSessionDto> getExamSessions() {
@@ -323,7 +449,11 @@ public class PortalService {
             throw new BadRequestException("Close time must be after open time");
         }
         ExamSession session = id == null ? new ExamSession() : findExamSession(id);
-        session.setExam(findExam(payload.examId()));
+        Exam exam = findExam(payload.examId());
+        if (!exam.isPublished()) {
+            throw new BadRequestException("Only published exams can be scheduled into sessions");
+        }
+        session.setExam(exam);
         session.setTitle(payload.title());
         session.setOpenTime(payload.openTime());
         session.setCloseTime(payload.closeTime());
@@ -358,11 +488,12 @@ public class PortalService {
         if (attemptRepository.countByStudent_IdAndExamSession_Id(student.getId(), sessionId) >= session.getMaxAttempts()) {
             throw new BadRequestException("Max attempts exceeded");
         }
+        ensureSessionSnapshot(session);
         Attempt attempt = new Attempt();
         attempt.setExamSession(session);
         attempt.setStudent(student);
         attempt.setStatus(AttemptStatus.IN_PROGRESS);
-        attempt.setTotalQuestions((int) examQuestionRepository.countByExam_Id(session.getExam().getId()));
+        attempt.setTotalQuestions((int) examSessionQuestionRepository.countByExamSession_Id(sessionId));
         return toAttemptDto(attemptRepository.save(attempt), true);
     }
 
@@ -373,27 +504,27 @@ public class PortalService {
         }
 
         attemptAnswerRepository.deleteAll(attemptAnswerRepository.findByAttempt_Id(attemptId));
-        Map<Long, QuestionOption> optionMap = new HashMap<>();
-        List<ExamQuestion> examQuestions = examQuestionRepository.findByExam_IdOrderByDisplayOrderAsc(
-            attempt.getExamSession().getExam().getId()
+        Map<Long, ExamSessionQuestionOption> optionMap = new HashMap<>();
+        List<ExamSessionQuestion> examQuestions = examSessionQuestionRepository.findByExamSession_IdOrderByDisplayOrderAsc(
+            attempt.getExamSession().getId()
         );
 
-        examQuestions.forEach(examQuestion -> questionOptionRepository.findByQuestion_IdOrderByOptionLabelAsc(
-            examQuestion.getQuestion().getId()
+        examQuestions.forEach(examQuestion -> examSessionQuestionOptionRepository.findByExamSessionQuestion_IdOrderByOptionLabelAsc(
+            examQuestion.getId()
         ).forEach(option -> optionMap.put(option.getId(), option)));
 
         int correct = 0;
         int wrong = 0;
         int unanswered = 0;
 
-        for (ExamQuestion examQuestion : examQuestions) {
+        for (ExamSessionQuestion examQuestion : examQuestions) {
             ApiDtos.AttemptAnswerPayload answerPayload = payload.answers() == null ? null :
                 payload.answers().stream()
-                    .filter(item -> item.questionId().equals(examQuestion.getQuestion().getId()))
+                    .filter(item -> item.questionId().equals(examQuestion.getId()))
                     .findFirst()
                     .orElse(null);
 
-            QuestionOption selectedOption = answerPayload == null || answerPayload.selectedOptionId() == null
+            ExamSessionQuestionOption selectedOption = answerPayload == null || answerPayload.selectedOptionId() == null
                 ? null
                 : optionMap.get(answerPayload.selectedOptionId());
 
@@ -401,7 +532,7 @@ public class PortalService {
 
             AttemptAnswer answer = new AttemptAnswer();
             answer.setAttempt(attempt);
-            answer.setQuestion(examQuestion.getQuestion());
+            answer.setExamSessionQuestion(examQuestion);
             answer.setSelectedOption(selectedOption);
             answer.setCorrect(isCorrect);
             attemptAnswerRepository.save(answer);
@@ -577,21 +708,80 @@ public class PortalService {
     }
 
     private ApiDtos.ExamDto toExamDto(Exam exam) {
+        List<ApiDtos.ExamQuestionDto> questions = examQuestionRepository.findByExam_IdOrderByDisplayOrderAscIdAsc(exam.getId()).stream()
+            .map(item -> new ApiDtos.ExamQuestionDto(
+                item.getId(),
+                item.getQuestion().getId(),
+                item.getQuestion().getContent(),
+                item.getDisplayOrder()
+            ))
+            .toList();
+
         return new ApiDtos.ExamDto(
             exam.getId(),
             exam.getTitle(),
             exam.getDescription(),
             exam.getSubject().getId(),
             exam.getSubject().getName(),
-            exam.getDurationMinutes(),
-            exam.getTotalScore(),
-            exam.getStatus(),
+            exam.getRequiredQuestionCount(),
             exam.isShowAnswersAfterSubmit(),
-            (int) examQuestionRepository.countByExam_Id(exam.getId())
+            exam.isPublished(),
+            questions.size(),
+            questions
         );
     }
 
+    private void normalizeExamQuestionOrder(Long examId) {
+        List<ExamQuestion> questions = examQuestionRepository.findByExam_IdOrderByDisplayOrderAscIdAsc(examId);
+        for (int index = 0; index < questions.size(); index++) {
+            questions.get(index).setDisplayOrder(index + 1);
+        }
+        examQuestionRepository.saveAll(questions);
+    }
+
+    private void ensureDraftHasCapacity(Exam exam, long incomingQuestionCount) {
+        long currentCount = exam.getId() == null ? 0 : examQuestionRepository.countByExam_Id(exam.getId());
+        if (currentCount + incomingQuestionCount > exam.getRequiredQuestionCount()) {
+            throw new BadRequestException("Draft cannot contain more questions than the required question count");
+        }
+    }
+
+    private void deleteExamDependencies(Long examId) {
+        List<ExamSession> sessions = examSessionRepository.findByExam_Id(examId);
+
+        for (ExamSession session : sessions) {
+            List<Attempt> attempts = attemptRepository.findByExamSession_Id(session.getId());
+            if (!attempts.isEmpty()) {
+                List<Long> attemptIds = attempts.stream().map(Attempt::getId).toList();
+                attemptAnswerRepository.deleteAll(attemptAnswerRepository.findByAttempt_IdIn(attemptIds));
+                attemptRepository.deleteAll(attempts);
+            }
+
+            List<ExamSessionQuestion> snapshotQuestions = examSessionQuestionRepository
+                .findByExamSession_IdOrderByDisplayOrderAsc(session.getId());
+            if (!snapshotQuestions.isEmpty()) {
+                List<Long> snapshotQuestionIds = snapshotQuestions.stream().map(ExamSessionQuestion::getId).toList();
+                examSessionQuestionOptionRepository.deleteAll(
+                    examSessionQuestionOptionRepository.findByExamSessionQuestion_IdIn(snapshotQuestionIds)
+                );
+                examSessionQuestionRepository.deleteAll(snapshotQuestions);
+            }
+        }
+
+        if (!sessions.isEmpty()) {
+            examSessionRepository.deleteAll(sessions);
+        }
+
+        List<ExamQuestion> examQuestions = examQuestionRepository.findByExam_IdOrderByDisplayOrderAscIdAsc(examId);
+        if (!examQuestions.isEmpty()) {
+            examQuestionRepository.deleteAll(examQuestions);
+        }
+    }
+
     private ApiDtos.ExamSessionDto toSessionDto(ExamSession session) {
+        long questionCount = examSessionQuestionRepository.existsByExamSession_Id(session.getId())
+            ? examSessionQuestionRepository.countByExamSession_Id(session.getId())
+            : examQuestionRepository.countByExam_Id(session.getExam().getId());
         return new ApiDtos.ExamSessionDto(
             session.getId(),
             session.getExam().getId(),
@@ -602,21 +792,22 @@ public class PortalService {
             session.getDurationMinutes(),
             session.getMaxAttempts(),
             session.getStatus(),
-            (int) examQuestionRepository.countByExam_Id(session.getExam().getId())
+            (int) questionCount
         );
     }
 
     private ApiDtos.AttemptDto toAttemptDto(Attempt attempt, boolean includeQuestions) {
-        List<ExamQuestion> examQuestions = examQuestionRepository.findByExam_IdOrderByDisplayOrderAsc(
-            attempt.getExamSession().getExam().getId()
+        ensureSessionSnapshot(attempt.getExamSession());
+        List<ExamSessionQuestion> examQuestions = examSessionQuestionRepository.findByExamSession_IdOrderByDisplayOrderAsc(
+            attempt.getExamSession().getId()
         );
 
         List<ApiDtos.AttemptQuestionDto> questions = includeQuestions
             ? examQuestions.stream().map(item -> new ApiDtos.AttemptQuestionDto(
-                item.getQuestion().getId(),
-                item.getQuestion().getContent(),
+                item.getId(),
+                item.getContent(),
                 item.getDisplayOrder(),
-                questionOptionRepository.findByQuestion_IdOrderByOptionLabelAsc(item.getQuestion().getId()).stream()
+                examSessionQuestionOptionRepository.findByExamSessionQuestion_IdOrderByOptionLabelAsc(item.getId()).stream()
                     .map(option -> new ApiDtos.OptionDto(option.getId(), option.getOptionLabel(), option.getOptionContent(), false))
                     .toList()
             )).toList()
@@ -626,12 +817,14 @@ public class PortalService {
         if (!includeQuestions) {
             review = attemptAnswerRepository.findByAttempt_Id(attempt.getId()).stream()
                 .map(answer -> {
-                    List<QuestionOption> options = questionOptionRepository.findByQuestion_IdOrderByOptionLabelAsc(answer.getQuestion().getId());
-                    String correctLabel = options.stream().filter(QuestionOption::isCorrect).findFirst().map(QuestionOption::getOptionLabel).orElse(null);
+                    List<ExamSessionQuestionOption> options = examSessionQuestionOptionRepository
+                        .findByExamSessionQuestion_IdOrderByOptionLabelAsc(answer.getExamSessionQuestion().getId());
+                    String correctLabel = options.stream().filter(ExamSessionQuestionOption::isCorrect).findFirst()
+                        .map(ExamSessionQuestionOption::getOptionLabel).orElse(null);
                     String selectedLabel = answer.getSelectedOption() == null ? null : answer.getSelectedOption().getOptionLabel();
                     return new ApiDtos.AttemptReviewDto(
-                        answer.getQuestion().getId(),
-                        answer.getQuestion().getContent(),
+                        answer.getExamSessionQuestion().getId(),
+                        answer.getExamSessionQuestion().getContent(),
                         selectedLabel,
                         correctLabel,
                         answer.isCorrect()
@@ -659,6 +852,47 @@ public class PortalService {
             questions,
             review
         );
+    }
+
+    private void ensureExamEditable(Exam exam) {
+        if (exam.getId() == null) {
+            return;
+        }
+        if (examSessionRepository.existsByExam_IdAndOpenTimeLessThanEqual(exam.getId(), LocalDateTime.now())) {
+            throw new BadRequestException("Exam is locked because at least one session has reached its start time");
+        }
+    }
+
+    private void ensureSessionSnapshot(ExamSession session) {
+        if (examSessionQuestionRepository.existsByExamSession_Id(session.getId())) {
+            return;
+        }
+
+        List<ExamQuestion> sourceQuestions = examQuestionRepository.findByExam_IdOrderByDisplayOrderAscIdAsc(session.getExam().getId());
+        if (sourceQuestions.isEmpty()) {
+            throw new BadRequestException("Session exam has no questions to snapshot");
+        }
+
+        for (ExamQuestion sourceQuestion : sourceQuestions) {
+            ExamSessionQuestion snapshotQuestion = new ExamSessionQuestion();
+            snapshotQuestion.setExamSession(session);
+            snapshotQuestion.setSourceQuestionId(sourceQuestion.getQuestion().getId());
+            snapshotQuestion.setContent(sourceQuestion.getQuestion().getContent());
+            snapshotQuestion.setDisplayOrder(sourceQuestion.getDisplayOrder());
+            ExamSessionQuestion savedQuestion = examSessionQuestionRepository.save(snapshotQuestion);
+
+            List<QuestionOption> sourceOptions = questionOptionRepository.findByQuestion_IdOrderByOptionLabelAsc(
+                sourceQuestion.getQuestion().getId()
+            );
+            for (QuestionOption sourceOption : sourceOptions) {
+                ExamSessionQuestionOption snapshotOption = new ExamSessionQuestionOption();
+                snapshotOption.setExamSessionQuestion(savedQuestion);
+                snapshotOption.setOptionLabel(sourceOption.getOptionLabel());
+                snapshotOption.setOptionContent(sourceOption.getOptionContent());
+                snapshotOption.setCorrect(sourceOption.isCorrect());
+                examSessionQuestionOptionRepository.save(snapshotOption);
+            }
+        }
     }
 
     private ApiDtos.QuestionImportPreviewQuestionDto toImportPreviewQuestionDto(ImportedQuestionData questionData) {
