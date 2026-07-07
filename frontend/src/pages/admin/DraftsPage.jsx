@@ -8,7 +8,7 @@ const emptyExamForm = {
   requiredQuestionCount: 10,
 }
 
-function ExamEditor({ form, subjects, busy, editingId, onChange, onSubmit }) {
+function ExamEditor({ form, subjects, busy, editingId, onChange, onSubjectChange, onSubmit }) {
   return (
     <form className="panel stack draft-editor-panel" onSubmit={onSubmit}>
       <div className="row-between wrap-row">
@@ -26,7 +26,7 @@ function ExamEditor({ form, subjects, busy, editingId, onChange, onSubmit }) {
       <div className="two-column">
         <label>
           Subject
-          <select value={form.subjectId} onChange={(event) => onChange('subjectId', event.target.value)} required>
+          <select value={form.subjectId} onChange={(event) => onSubjectChange(event.target.value)} required>
             <option value="">Choose subject</option>
             {subjects.map((subject) => (
               <option key={subject.id} value={subject.id}>{subject.name}</option>
@@ -105,7 +105,9 @@ export default function DraftsPage() {
     return examQuestions.filter((question) => question.content.toLowerCase().includes(keyword))
   }, [selectedExam, examQuestionKeyword])
 
+  const activeSubjectId = editingExamId ? Number(form.subjectId || selectedExam?.subjectId || 0) : selectedExam?.subjectId
   const remainingSlots = Math.max((selectedExam?.requiredQuestionCount || 0) - (selectedExam?.questionCount || 0), 0)
+  const normalizedRandomCount = Math.max(0, Math.min(Number(randomCount) || 0, remainingSlots))
 
   useEffect(() => {
     setSelectedQuestionIds((current) => current.filter((id) => availableQuestions.some((question) => question.id === id)))
@@ -114,6 +116,15 @@ export default function DraftsPage() {
   useEffect(() => {
     setSelectedExamQuestionIds((current) => current.filter((id) => selectedExam?.questions?.some((question) => question.id === id)))
   }, [selectedExam])
+
+  useEffect(() => {
+    setRandomCount((current) => {
+      const numeric = Number(current) || 0
+      if (numeric > remainingSlots) return remainingSlots
+      if (numeric < 0) return 0
+      return numeric
+    })
+  }, [remainingSlots])
 
   const loadExams = async (preferredExamId = selectedExamId) => {
     const { data } = await api.get('/drafts')
@@ -140,14 +151,14 @@ export default function DraftsPage() {
   }, [])
 
   useEffect(() => {
-    if (!selectedExam?.subjectId) {
+    if (!activeSubjectId) {
       setSubjectQuestions([])
       setSelectedQuestionIds([])
       setSelectedExamQuestionIds([])
       return
     }
 
-    api.get('/questions', { params: { subjectId: selectedExam.subjectId } })
+    api.get('/questions', { params: { subjectId: activeSubjectId } })
       .then(({ data }) => {
         setSubjectQuestions(data)
       })
@@ -156,7 +167,7 @@ export default function DraftsPage() {
         setSelectedQuestionIds([])
         setSelectedExamQuestionIds([])
       })
-  }, [selectedExam?.id, selectedExam?.subjectId])
+  }, [activeSubjectId, selectedExam?.id])
 
   useEffect(() => {
     setSelectedQuestionIds([])
@@ -179,6 +190,59 @@ export default function DraftsPage() {
 
   const updateForm = (key, value) => {
     setForm((prev) => ({ ...prev, [key]: value }))
+  }
+
+  const handleSubjectChange = async (value) => {
+    if (!editingExamId || !selectedExam) {
+      updateForm('subjectId', value)
+      return
+    }
+
+    if (String(selectedExam.subjectId) === String(value)) {
+      updateForm('subjectId', value)
+      return
+    }
+
+    if ((selectedExam.questionCount || 0) > 0) {
+      const confirmed = window.confirm('If you continue, all current questions in this draft will be removed. Continue?')
+      if (!confirmed) {
+        setForm((prev) => ({ ...prev, subjectId: String(selectedExam.subjectId) }))
+        return
+      }
+
+      setBusy(true)
+      setError('')
+      setMessage('')
+      try {
+        for (const examQuestion of selectedExam.questions || []) {
+          await api.delete(`/drafts/${selectedExam.id}/questions/${examQuestion.id}`)
+        }
+
+        const payload = {
+          title: form.title.trim(),
+          subjectId: Number(value),
+          requiredQuestionCount: Number(form.requiredQuestionCount),
+        }
+
+        await api.put(`/drafts/${editingExamId}`, payload)
+        const { data } = await api.get(`/drafts/${editingExamId}`)
+        const normalized = normalizeExam(data)
+        setSelectedExamDetail(normalized)
+        setExams((current) => current.map((exam) => (exam.id === editingExamId ? normalized : exam)))
+        setForm((prev) => ({ ...prev, subjectId: value }))
+        setSelectedQuestionIds([])
+        setSelectedExamQuestionIds([])
+        setMessage('Subject changed. Existing questions were removed.')
+      } catch (requestError) {
+        setError(requestError.response?.data?.message || 'Unable to change subject.')
+        setForm((prev) => ({ ...prev, subjectId: String(selectedExam.subjectId) }))
+      } finally {
+        setBusy(false)
+      }
+      return
+    }
+
+    updateForm('subjectId', value)
   }
 
   const resetForm = () => {
@@ -345,10 +409,11 @@ export default function DraftsPage() {
     }
   }
 
-  const handleRandomizeQuestions = () => {
+  const handleRandomizeQuestions = (countOverride = null) => {
     if (!selectedExam) return
     const pool = availableQuestions
-    const maxCount = Math.min(Number(randomCount) || 0, pool.length, remainingSlots)
+    const requestedCount = countOverride == null ? normalizedRandomCount : countOverride
+    const maxCount = Math.min(requestedCount, pool.length, remainingSlots)
     if (maxCount < 1) {
       setError('No available questions to randomize.')
       return
@@ -391,75 +456,77 @@ export default function DraftsPage() {
   }
 
   return (
-    <PageSection title="Draft Management" hidePath compactHeader>
+    <PageSection title="Draft Management" compactHeader>
       <div className="draft-workspace">
         <div className="panel stack draft-sidebar-panel">
-            <div className="row-between wrap-row">
-              <h3>Draft list</h3>
-              <button type="button" className="primary-button" onClick={beginCreate}>
-                Create draft
-              </button>
-            </div>
+          <div className="row-between wrap-row">
+            <h3>Draft list</h3>
+            <button type="button" className="primary-button" onClick={beginCreate}>
+              Create draft
+            </button>
+          </div>
 
+          <div className="draft-status-slot">
             {error ? <p className="error-text">{error}</p> : null}
-            {message ? <p className="success-text">{message}</p> : null}
+            {!error && message ? <p className="success-text">{message}</p> : null}
+          </div>
 
-            <div className="draft-list">
-              {exams.map((exam) => (
-                <article
-                  key={exam.id}
-                  className={selectedExamId === exam.id ? 'question-card selected-card draft-list-card draft-list-card-compact' : 'question-card draft-list-card draft-list-card-compact'}
-                  onClick={() => {
+          <div className="draft-list">
+            {exams.map((exam) => (
+              <article
+                key={exam.id}
+                className={selectedExamId === exam.id ? 'question-card selected-card draft-list-card draft-list-card-compact' : 'question-card draft-list-card draft-list-card-compact'}
+                onClick={() => {
+                  setSelectedExamId(exam.id)
+                  beginEdit(exam)
+                }}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault()
                     setSelectedExamId(exam.id)
                     beginEdit(exam)
-                  }}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' || event.key === ' ') {
-                      event.preventDefault()
-                      setSelectedExamId(exam.id)
-                      beginEdit(exam)
-                    }
-                  }}
-                >
-                  <div className="row-between wrap-row">
-                    <div className="draft-card-copy">
-                      <h3>{exam.title}</h3>
-                      <p className="muted">{exam.subjectName}</p>
-                    </div>
-                    <div className="action-row draft-card-actions">
-                      <span className="muted draft-card-count">{exam.questionCount} / {exam.requiredQuestionCount}</span>
-                      <button
-                        type="button"
-                        className="ghost-button draft-card-button"
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          handleOpenPreview(exam)
-                        }}
-                        disabled={busy}
-                      >
-                        Preview
-                      </button>
-                      <button
-                        type="button"
-                        className="icon-button danger-icon-button draft-card-icon"
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          handleDeleteExam(exam.id)
-                        }}
-                        disabled={busy}
-                        aria-label={`Delete ${exam.title}`}
-                      >
-                        x
-                      </button>
-                    </div>
+                  }
+                }}
+              >
+                <div className="row-between wrap-row">
+                  <div className="draft-card-copy">
+                    <h3>{exam.title}</h3>
+                    <p className="muted">{exam.subjectName}</p>
                   </div>
-                </article>
-              ))}
-            </div>
+                  <div className="action-row draft-card-actions">
+                    <span className="muted draft-card-count">{exam.questionCount} / {exam.requiredQuestionCount}</span>
+                    <button
+                      type="button"
+                      className="ghost-button draft-card-button"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        handleOpenPreview(exam)
+                      }}
+                      disabled={busy}
+                    >
+                      Preview
+                    </button>
+                    <button
+                      type="button"
+                      className="icon-button danger-icon-button draft-card-icon"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        handleDeleteExam(exam.id)
+                      }}
+                      disabled={busy}
+                      aria-label={`Delete ${exam.title}`}
+                    >
+                      x
+                    </button>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
 
-            {!exams.length ? <p className="muted">No drafts yet. Create the first draft to get started.</p> : null}
+          {!exams.length ? <p className="muted">No drafts yet. Create the first draft to get started.</p> : null}
         </div>
 
         <div className="stack draft-main-column">
@@ -470,6 +537,7 @@ export default function DraftsPage() {
               busy={busy}
               editingId={editingExamId}
               onChange={updateForm}
+              onSubjectChange={handleSubjectChange}
               onSubmit={handleSubmitExam}
             />
           ) : (
@@ -505,7 +573,7 @@ export default function DraftsPage() {
               />
             </label>
 
-            <div className="question-bank-list">
+            <div className={filteredExamQuestions.length ? 'question-bank-list exam-question-list-scroll' : 'question-bank-list exam-question-list-empty'}>
               {filteredExamQuestions.map((question, index) => (
                 <label key={question.id ?? `${question.questionId}-${index}`} className="question-bank-item">
                   <input
@@ -519,7 +587,7 @@ export default function DraftsPage() {
               ))}
             </div>
 
-            <div className="action-row">
+            <div className="action-row question-list-actions">
               <button
                 type="button"
                 className="ghost-button"
@@ -528,30 +596,34 @@ export default function DraftsPage() {
               >
                 Select all
               </button>
-              <button
-                type="button"
-                className="ghost-button"
-                onClick={() => setSelectedExamQuestionIds([])}
-                disabled={busy || !selectedExamQuestionIds.length}
-              >
-                Clear selected
-              </button>
-              <button
-                  type="button"
-                  className="danger-button ghost-button"
-                  onClick={() => handleRemoveSelectedQuestions()}
-                  disabled={busy || !selectedExamQuestionIds.length}
-                >
-                  Remove selected
-                </button>
-            </div>
-
-            <div>
+              <div>
               <span className="muted">{selectedExamQuestionIds.length} selected</span>
-              <div className="action-row action-row-end">
-                
+            </div>
+              <div className="action-row question-list-actions-right">
+                {selectedExamQuestionIds.length ? (
+                  <button
+                    type="button"
+                    className="ghost-button"
+                    onClick={() => setSelectedExamQuestionIds([])}
+                    disabled={busy}
+                  >
+                    Clear selected
+                  </button>
+                ) : null}
+                {selectedExamQuestionIds.length ? (
+                  <button
+                    type="button"
+                    className="danger-button ghost-button"
+                    onClick={() => handleRemoveSelectedQuestions()}
+                    disabled={busy}
+                  >
+                    Remove selected
+                  </button>
+                ) : null}
               </div>
             </div>
+
+            
 
             {!selectedExam.questions?.length ? <p className="muted">This draft has no questions yet.</p> : null}
             </div>
@@ -601,7 +673,7 @@ export default function DraftsPage() {
             </div>
 
             <div className="question-bank-toolbar">
-              <div className="action-row wrap-row">
+              <div className="action-row wrap-row question-list-actions">
                 <button
                   type="button"
                   className="ghost-button"
@@ -613,12 +685,33 @@ export default function DraftsPage() {
                 <label className="inline-number-field">
                   <input
                     type="number"
-                    min="1"
+                    min="0"
+                    max={remainingSlots}
                     value={randomCount}
-                    onChange={(event) => setRandomCount(event.target.value)}
+                    onChange={(event) => {
+                      const nextValue = Number(event.target.value) || 0
+                      setRandomCount(Math.max(0, Math.min(nextValue, remainingSlots)))
+                    }}
                     disabled={busy || remainingSlots < 1}
                   />
                 </label>
+                <button
+                  type="button"
+                  className="ghost-button"
+                  onClick={() => {
+                    setRandomCount(remainingSlots)
+                    handleRandomizeQuestions(remainingSlots)
+                  }}
+                  disabled={busy || remainingSlots < 1}
+                >
+                  Random max
+                </button>
+                <div className="action-row question-list-actions-right">
+                  
+                </div>
+                
+              </div>
+              <div className="action-row question-bank-selection-row">
                 <button
                   type="button"
                   className="ghost-button"
@@ -627,25 +720,29 @@ export default function DraftsPage() {
                 >
                   Select all
                 </button>
-                <button
-                  type="button"
-                  className="ghost-button"
-                  onClick={() => setSelectedQuestionIds([])}
-                  disabled={busy || !selectedQuestionIds.length}
-                >
-                  Clear selected
-                </button>
+                {selectedQuestionIds.length ? (
+                    <button
+                      type="button"
+                      className="ghost-button question-bank-secondary-action"
+                      onClick={() => setSelectedQuestionIds([])}
+                      disabled={busy}
+                    >
+                      Clear selected
+                    </button>
+                  ) : null}
               </div>
               <div className="row-between wrap-row">
                 <div className="muted">{selectedQuestionIds.length} selected</div>
-                <button
-                  type="button"
-                  className="primary-button"
-                  onClick={() => handleAddSelectedQuestions()}
-                  disabled={busy || !selectedQuestionIds.length || remainingSlots < 1}
-                >
-                  Add selected
-                </button>
+                {remainingSlots > 0 ? (
+                  <button
+                    type="button"
+                    className="primary-button"
+                    onClick={() => handleAddSelectedQuestions()}
+                    disabled={busy || !selectedQuestionIds.length}
+                  >
+                    Add selected
+                  </button>
+                ) : null}
               </div>
             </div>
 
