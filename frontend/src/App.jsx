@@ -575,18 +575,356 @@ function TopicsPage() {
 }
 
 function QuestionsPage() {
+  const emptyForm = {
+    content: '',
+    subjectId: '',
+    topicId: '',
+    difficulty: 'EASY',
+    status: 'ENABLED',
+    explanation: '',
+    options: [
+      { label: 'A', content: '', correct: true },
+      { label: 'B', content: '', correct: false },
+      { label: 'C', content: '', correct: false },
+      { label: 'D', content: '', correct: false },
+    ],
+  }
+
   const [questions, setQuestions] = useState([])
+  const [subjects, setSubjects] = useState([])
+  const [topics, setTopics] = useState([])
+  const [form, setForm] = useState(emptyForm)
+  const [editingId, setEditingId] = useState(null)
+  const [previewQuestion, setPreviewQuestion] = useState(null)
+  const [filters, setFilters] = useState({ keyword: '', status: 'ALL' })
+  const [message, setMessage] = useState('')
+  const [error, setError] = useState('')
+
+  const loadLookups = async () => {
+    const [subjectsRes, topicsRes] = await Promise.all([
+      api.get('/subjects'),
+      api.get('/topics'),
+    ])
+    setSubjects(subjectsRes.data)
+    setTopics(topicsRes.data)
+  }
+
+  const loadQuestions = async () => {
+    const params = {}
+    if (filters.keyword.trim()) params.keyword = filters.keyword.trim()
+    if (filters.status !== 'ALL') params.status = filters.status
+    const { data } = await api.get('/questions', { params })
+    setQuestions(data)
+  }
 
   useEffect(() => {
-    api.get('/questions').then(({ data }) => setQuestions(data))
+    loadLookups()
   }, [])
 
+  useEffect(() => {
+    loadQuestions()
+  }, [filters.keyword, filters.status])
+
+  const filteredTopics = topics.filter((topic) => String(topic.subjectId) === String(form.subjectId || ''))
+
+  const resetForm = () => {
+    setForm(emptyForm)
+    setEditingId(null)
+    setError('')
+    setMessage('')
+  }
+
+  const handleOptionChange = (index, value) => {
+    setForm((prev) => ({
+      ...prev,
+      options: prev.options.map((option, optionIndex) => (
+        optionIndex === index ? { ...option, content: value } : option
+      )),
+    }))
+  }
+
+  const setCorrectOption = (label) => {
+    setForm((prev) => ({
+      ...prev,
+      options: prev.options.map((option) => ({ ...option, correct: option.label === label })),
+    }))
+  }
+
+  const handleSubmit = async (event) => {
+    event.preventDefault()
+    setError('')
+    setMessage('')
+    try {
+      const payload = {
+        ...form,
+        subjectId: Number(form.subjectId),
+        topicId: Number(form.topicId),
+        options: form.options.map((option) => ({
+          label: option.label,
+          content: option.content,
+          correct: option.correct,
+        })),
+      }
+      const endpoint = editingId ? `/questions/${editingId}` : '/questions'
+      const method = editingId ? 'put' : 'post'
+      await api[method](endpoint, payload)
+      setMessage(editingId ? 'Question updated.' : 'Question created.')
+      resetForm()
+      loadQuestions()
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || 'Unable to save question.')
+    }
+  }
+
+  const handleEdit = async (id) => {
+    const { data } = await api.get(`/questions/${id}`)
+    setEditingId(id)
+    setPreviewQuestion(null)
+    setMessage('')
+    setError('')
+    setForm({
+      content: data.content,
+      subjectId: String(data.subjectId),
+      topicId: String(data.topicId),
+      difficulty: data.difficulty,
+      status: data.status,
+      explanation: data.explanation || '',
+      options: data.options.map((option) => ({
+        label: option.label,
+        content: option.content,
+        correct: option.correct,
+      })),
+    })
+  }
+
+  const handlePreview = async (id) => {
+    const { data } = await api.get(`/questions/${id}`)
+    setPreviewQuestion(data)
+  }
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('Delete this question?')) return
+    await api.delete(`/questions/${id}`)
+    if (editingId === id) resetForm()
+    if (previewQuestion?.id === id) setPreviewQuestion(null)
+    setMessage('Question deleted.')
+    loadQuestions()
+  }
+
+  const handleToggleStatus = async (item) => {
+    const nextStatus = item.status === 'ENABLED' ? 'DISABLED' : 'ENABLED'
+    await api.patch(`/questions/${item.id}/status`, null, { params: { status: nextStatus } })
+    if (previewQuestion?.id === item.id) {
+      setPreviewQuestion((prev) => (prev ? { ...prev, status: nextStatus } : prev))
+    }
+    setMessage(`Question ${nextStatus === 'ENABLED' ? 'enabled' : 'disabled'}.`)
+    loadQuestions()
+  }
+
   return (
-    <PageSection title="Question Bank" description="Preview question content, difficulty, topic, and enable/disable state.">
-      <DataTable
-        columns={['Content', 'Difficulty', 'Status', 'Subject', 'Topic']}
-        rows={questions.map((item) => [item.content, item.difficulty, item.status, item.subjectName, item.topicName])}
-      />
+    <PageSection title="Question Bank" description="Create, edit, preview, and enable or disable 4-option single-answer questions.">
+      <div className="two-column question-bank-layout">
+        <form className="panel stack" onSubmit={handleSubmit}>
+          <div className="row-between wrap-row">
+            <h3>{editingId ? 'Edit question' : 'Create question'}</h3>
+            {editingId ? (
+              <button type="button" className="ghost-button" onClick={resetForm}>
+                Cancel edit
+              </button>
+            ) : null}
+          </div>
+
+          <label>
+            Question content
+            <textarea
+              value={form.content}
+              onChange={(event) => setForm({ ...form, content: event.target.value })}
+              rows="4"
+              required
+            />
+          </label>
+
+          <div className="two-column compact-grid">
+            <label>
+              Subject
+              <select
+                value={form.subjectId}
+                onChange={(event) => setForm({ ...form, subjectId: event.target.value, topicId: '' })}
+                required
+              >
+                <option value="">Select subject</option>
+                {subjects.map((subject) => (
+                  <option key={subject.id} value={subject.id}>{subject.name}</option>
+                ))}
+              </select>
+            </label>
+
+            <label>
+              Topic
+              <select
+                value={form.topicId}
+                onChange={(event) => setForm({ ...form, topicId: event.target.value })}
+                required
+                disabled={!form.subjectId}
+              >
+                <option value="">Select topic</option>
+                {filteredTopics.map((topic) => (
+                  <option key={topic.id} value={topic.id}>{topic.name}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <div className="two-column compact-grid">
+            <label>
+              Difficulty
+              <select value={form.difficulty} onChange={(event) => setForm({ ...form, difficulty: event.target.value })}>
+                <option value="EASY">EASY</option>
+                <option value="MEDIUM">MEDIUM</option>
+                <option value="HARD">HARD</option>
+              </select>
+            </label>
+
+            <label>
+              Status
+              <select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })}>
+                <option value="ENABLED">ENABLED</option>
+                <option value="DISABLED">DISABLED</option>
+              </select>
+            </label>
+          </div>
+
+          <div className="stack">
+            <div className="row-between wrap-row">
+              <h3>Answer options</h3>
+              <span className="muted">Exactly one correct answer</span>
+            </div>
+            {form.options.map((option, index) => (
+              <div key={option.label} className="option-editor">
+                <label className="radio-inline">
+                  <input
+                    type="radio"
+                    name="correct-option"
+                    checked={option.correct}
+                    onChange={() => setCorrectOption(option.label)}
+                  />
+                  Correct
+                </label>
+                <span className="option-label">{option.label}</span>
+                <input
+                  value={option.content}
+                  onChange={(event) => handleOptionChange(index, event.target.value)}
+                  placeholder={`Option ${option.label}`}
+                  required
+                />
+              </div>
+            ))}
+          </div>
+
+          <label>
+            Explanation (optional)
+            <textarea
+              value={form.explanation}
+              onChange={(event) => setForm({ ...form, explanation: event.target.value })}
+              rows="3"
+            />
+          </label>
+
+          {error ? <p className="error-text">{error}</p> : null}
+          {message ? <p className="success-text">{message}</p> : null}
+
+          <button type="submit" className="primary-button">
+            {editingId ? 'Update question' : 'Create question'}
+          </button>
+        </form>
+
+        <div className="stack">
+          <div className="panel stack">
+            <div className="row-between wrap-row">
+              <h3>Question list</h3>
+              <span className="pill">{questions.length} items</span>
+            </div>
+
+            <div className="two-column compact-grid">
+              <label>
+                Search content
+                <input
+                  value={filters.keyword}
+                  onChange={(event) => setFilters((prev) => ({ ...prev, keyword: event.target.value }))}
+                  placeholder="Search question text"
+                />
+              </label>
+              <label>
+                Status filter
+                <select value={filters.status} onChange={(event) => setFilters((prev) => ({ ...prev, status: event.target.value }))}>
+                  <option value="ALL">ALL</option>
+                  <option value="ENABLED">ENABLED</option>
+                  <option value="DISABLED">DISABLED</option>
+                </select>
+              </label>
+            </div>
+
+            <div className="stack">
+              {questions.map((item) => (
+                <article key={item.id} className="question-card">
+                  <div className="row-between wrap-row">
+                    <div>
+                      <h4>{item.content}</h4>
+                      <p className="muted">{item.subjectName} / {item.topicName}</p>
+                    </div>
+                    <div className="stack inline-actions">
+                      <span className={item.status === 'ENABLED' ? 'pill success' : 'pill danger'}>
+                        {item.status}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="question-meta">
+                    <span>{item.difficulty}</span>
+                    <span>ID #{item.id}</span>
+                  </div>
+                  <div className="action-row">
+                    <button type="button" className="ghost-button" onClick={() => handlePreview(item.id)}>Preview</button>
+                    <button type="button" className="ghost-button" onClick={() => handleEdit(item.id)}>Edit</button>
+                    <button type="button" className="ghost-button" onClick={() => handleToggleStatus(item)}>
+                      {item.status === 'ENABLED' ? 'Disable' : 'Enable'}
+                    </button>
+                    <button type="button" className="ghost-button danger-button" onClick={() => handleDelete(item.id)}>Delete</button>
+                  </div>
+                </article>
+              ))}
+              {!questions.length ? <p className="muted">No questions found for the current filter.</p> : null}
+            </div>
+          </div>
+
+          <div className="panel stack">
+            <div className="row-between wrap-row">
+              <h3>Preview question</h3>
+              {previewQuestion ? (
+                <span className={previewQuestion.status === 'ENABLED' ? 'pill success' : 'pill danger'}>
+                  {previewQuestion.status}
+                </span>
+              ) : null}
+            </div>
+
+            {previewQuestion ? (
+              <>
+                <p><strong>Content:</strong> {previewQuestion.content}</p>
+                <p><strong>Difficulty:</strong> {previewQuestion.difficulty}</p>
+                <div className="stack">
+                  {previewQuestion.options.map((option) => (
+                    <div key={option.label} className={option.correct ? 'preview-option correct-preview' : 'preview-option'}>
+                      <strong>{option.label}.</strong> {option.content}
+                    </div>
+                  ))}
+                </div>
+                <p><strong>Explanation:</strong> {previewQuestion.explanation || 'No explanation provided.'}</p>
+              </>
+            ) : (
+              <p className="muted">Choose Preview on a question to inspect its answer set.</p>
+            )}
+          </div>
+        </div>
+      </div>
     </PageSection>
   )
 }

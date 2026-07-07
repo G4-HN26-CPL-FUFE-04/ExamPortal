@@ -205,13 +205,18 @@ label {
 }
 
 input,
-select {
+select,
+textarea {
   width: 100%;
   padding: 0.8rem 0.9rem;
   border-radius: 14px;
   border: 1px solid #c9d5e5;
   background: #fff;
   font: inherit;
+}
+
+textarea {
+  resize: vertical;
 }
 
 table {
@@ -240,6 +245,89 @@ td {
   color: #166b34;
 }
 
+.wrap-row {
+  flex-wrap: wrap;
+}
+
+.compact-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.question-bank-layout {
+  align-items: start;
+}
+
+.option-editor {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.radio-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.radio-inline input {
+  width: auto;
+}
+
+.option-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.2rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 12px;
+  background: #edf3fa;
+  color: #173c64;
+  font-weight: 700;
+}
+
+.question-card {
+  display: grid;
+  gap: 0.85rem;
+  padding: 1rem;
+  border: 1px solid #dde6f1;
+  border-radius: 18px;
+  background: #fbfdff;
+}
+
+.question-card h4 {
+  margin: 0 0 0.25rem;
+}
+
+.question-meta,
+.action-row {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.inline-actions {
+  justify-items: end;
+}
+
+.danger-button {
+  background: #f7dddd;
+  color: #8f1d1d;
+}
+
+.preview-option {
+  padding: 0.8rem 0.9rem;
+  border-radius: 14px;
+  background: #edf3fa;
+  color: #173c64;
+}
+
+.correct-preview {
+  background: #dbf4e2;
+  color: #166b34;
+}
+
 @media (max-width: 960px) {
   .app-shell,
   .auth-layout,
@@ -254,5 +342,10 @@ td {
 
   .content {
     padding: 1rem;
+  }
+
+  .option-editor,
+  .compact-grid {
+    grid-template-columns: 1fr;
   }
 }

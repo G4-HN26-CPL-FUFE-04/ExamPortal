@@ -34,10 +34,13 @@ import com.examportal.backend.security.JwtService;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -225,18 +228,21 @@ public class PortalService {
     }
 
     public ApiDtos.QuestionDetailDto saveQuestion(ApiDtos.QuestionPayload payload, Long id) {
-        long correctCount = payload.options().stream().filter(ApiDtos.OptionPayload::correct).count();
-        if (correctCount != 1) {
-            throw new BadRequestException("Exactly 1 correct option is required");
-        }
+        validateQuestionPayload(payload);
 
         Question question = id == null ? new Question() : findQuestion(id);
-        question.setContent(payload.content());
-        question.setSubject(findSubject(payload.subjectId()));
-        question.setTopic(findTopic(payload.topicId()));
+        Subject subject = findSubject(payload.subjectId());
+        Topic topic = findTopic(payload.topicId());
+        if (!topic.getSubject().getId().equals(subject.getId())) {
+            throw new BadRequestException("Topic must belong to the selected subject");
+        }
+
+        question.setContent(payload.content().trim());
+        question.setSubject(subject);
+        question.setTopic(topic);
         question.setDifficulty(payload.difficulty());
         question.setStatus(payload.status() == null ? QuestionStatus.ENABLED : payload.status());
-        question.setExplanation(payload.explanation());
+        question.setExplanation(payload.explanation() == null ? null : payload.explanation().trim());
         if (question.getCreatedBy() == null) {
             question.setCreatedBy(getCurrentUser());
         }
@@ -249,8 +255,8 @@ public class PortalService {
         payload.options().forEach(optionPayload -> {
             QuestionOption option = new QuestionOption();
             option.setQuestion(saved);
-            option.setOptionLabel(optionPayload.label());
-            option.setOptionContent(optionPayload.content());
+            option.setOptionLabel(optionPayload.label().trim().toUpperCase());
+            option.setOptionContent(optionPayload.content().trim());
             option.setCorrect(optionPayload.correct());
             questionOptionRepository.save(option);
         });
@@ -531,6 +537,22 @@ public class PortalService {
     private Role getRole(RoleName roleName) {
         return roleRepository.findByName(roleName)
             .orElseThrow(() -> new NotFoundException("Role not found"));
+    }
+
+    private void validateQuestionPayload(ApiDtos.QuestionPayload payload) {
+        long correctCount = payload.options().stream().filter(ApiDtos.OptionPayload::correct).count();
+        if (correctCount != 1) {
+            throw new BadRequestException("Exactly 1 correct option is required");
+        }
+
+        Set<String> labels = payload.options().stream()
+            .map(option -> option.label().trim().toUpperCase())
+            .collect(Collectors.toCollection(HashSet::new));
+
+        Set<String> requiredLabels = new HashSet<>(Arrays.asList("A", "B", "C", "D"));
+        if (!labels.equals(requiredLabels)) {
+            throw new BadRequestException("Question options must be exactly A, B, C, and D");
+        }
     }
 
     private ApiDtos.UserDto toUserDto(User user) {
