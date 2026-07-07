@@ -122,12 +122,12 @@ public final class ApiDtos {
 
     public record ExamSessionPayload(@NotNull Long examId, @NotBlank String title, @NotNull LocalDateTime openTime,
                                      @NotNull LocalDateTime closeTime, @Positive int durationMinutes,
-                                     @Positive int maxAttempts, @NotNull SessionStatus status) {
+                                     @Positive int maxAttempts, @NotNull SessionStatus status, boolean shuffleQuestions) {
     }
 
     public record ExamSessionDto(Long id, Long examId, String examTitle, String title, LocalDateTime openTime,
                                  LocalDateTime closeTime, int durationMinutes, int maxAttempts, SessionStatus status,
-                                 int questionCount) {
+                                 int questionCount, boolean shuffleQuestions, boolean showAnswersAfterSubmit) {
     }
 
     public record AttemptAnswerPayload(@NotNull Long questionId, Long selectedOptionId) {
@@ -142,7 +142,8 @@ public final class ApiDtos {
     public record AttemptDto(Long id, Long sessionId, String sessionTitle, String examTitle, int durationMinutes, AttemptStatus status,
                              LocalDateTime startedAt, LocalDateTime submittedAt, int totalQuestions, int correctAnswers,
                              int wrongAnswers, int unansweredAnswers, double score, long completionSeconds,
-                             List<AttemptQuestionDto> questions, List<AttemptReviewDto> answerReview) {
+                             List<AttemptQuestionDto> questions, List<AttemptReviewDto> answerReview,
+                             boolean showAnswersAfterSubmit) {
     }
 
     public record AttemptReviewDto(Long questionId, String content, String selectedLabel, String correctLabel,

@@ -13,13 +13,7 @@ B: 4
 C: 5
 D: 6
 ANSWER: B
-
-Q: Java is a ...
-A: Database
-B: Operating System
-C: Programming Language
-D: Browser
-ANSWER: C`
+`
 
 function QuestionEditor({ title, form, onSubmit, onCancel, onChangeContent, onOptionChange, onSetCorrect }) {
   return (
@@ -439,7 +433,7 @@ export default function SubjectQuestionsPage() {
               </button>
 
               <p className="muted">
-                Correct answer: {item.correctOptionLabel ? `${item.correctOptionLabel}. ${item.correctOptionContent}` : 'Not set'}
+                {item.correctOptionLabel ? `${item.correctOptionLabel}. ${item.correctOptionContent}` : 'Not set'}
               </p>
 
               {expandedQuestionId === item.id ? (

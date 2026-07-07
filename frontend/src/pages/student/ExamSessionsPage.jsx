@@ -25,6 +25,7 @@ export default function ExamSessionsPage() {
             <p>Duration: {session.durationMinutes} minutes</p>
             <p>Questions: {session.questionCount}</p>
             <p>Attempts allowed: {session.maxAttempts}</p>
+            <p>Review after submit: {session.showAnswersAfterSubmit ? 'Show correct answers' : 'Score only'}</p>
             <Link to={`${studentBasePath}/exam-sessions/${session.id}`} className="primary-link">Open details</Link>
           </article>
         ))}

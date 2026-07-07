@@ -37,6 +37,7 @@ public class ExamSession {
     private LocalDateTime closeTime;
     private int durationMinutes;
     private int maxAttempts;
+    private boolean shuffleQuestions;
 
     @Enumerated(EnumType.STRING)
     private SessionStatus status;

@@ -99,6 +99,7 @@ CREATE TABLE exam_sessions (
     close_time DATETIME2 NOT NULL,
     duration_minutes INT NOT NULL,
     max_attempts INT NOT NULL,
+    shuffle_questions BIT NOT NULL DEFAULT 0,
     status NVARCHAR(50) NOT NULL,
     created_by BIGINT NULL,
     created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),

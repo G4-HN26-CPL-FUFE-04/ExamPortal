@@ -43,6 +43,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Collections;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -420,6 +421,9 @@ public class PortalService {
         if (payload.closeTime().isBefore(payload.openTime()) || payload.closeTime().isEqual(payload.openTime())) {
             throw new BadRequestException("Close time must be after open time");
         }
+        if (Duration.between(payload.openTime(), payload.closeTime()).toMinutes() <= payload.durationMinutes()) {
+            throw new BadRequestException("End time minus start time must be greater than duration");
+        }
         ExamSession session = id == null ? new ExamSession() : findExamSession(id);
         Exam exam = findExam(payload.examId());
         long questionCount = examQuestionRepository.countByExam_Id(exam.getId());
@@ -435,6 +439,7 @@ public class PortalService {
         session.setCloseTime(payload.closeTime());
         session.setDurationMinutes(payload.durationMinutes());
         session.setMaxAttempts(payload.maxAttempts());
+        session.setShuffleQuestions(payload.shuffleQuestions());
         session.setStatus(payload.status());
         if (session.getCreatedBy() == null) {
             session.setCreatedBy(getCurrentUser());
@@ -475,6 +480,7 @@ public class PortalService {
 
     public ApiDtos.AttemptDto submitAttempt(Long attemptId, ApiDtos.AttemptSubmitPayload payload) {
         Attempt attempt = findAttempt(attemptId);
+        ensureAttemptAccess(attempt);
         if (attempt.getStatus() != AttemptStatus.IN_PROGRESS) {
             throw new BadRequestException("Attempt cannot be submitted twice");
         }
@@ -525,7 +531,8 @@ public class PortalService {
         attempt.setCorrectAnswers(correct);
         attempt.setWrongAnswers(wrong);
         attempt.setUnansweredAnswers(unanswered);
-        attempt.setScore(correct);
+        double score = examQuestions.isEmpty() ? 0 : Math.round((correct * 10_00.0 / examQuestions.size())) / 100.0;
+        attempt.setScore(score);
         attempt.setSubmittedAt(LocalDateTime.now());
         attempt.setCompletionSeconds(Duration.between(attempt.getStartedAt(), attempt.getSubmittedAt()).toSeconds());
         attempt.setStatus(payload.autoSubmitted() ? AttemptStatus.AUTO_SUBMITTED : AttemptStatus.SUBMITTED);
@@ -533,7 +540,9 @@ public class PortalService {
     }
 
     public ApiDtos.AttemptDto getAttempt(Long id) {
-        return toAttemptDto(findAttempt(id), false);
+        Attempt attempt = findAttempt(id);
+        ensureAttemptAccess(attempt);
+        return toAttemptDto(attempt, attempt.getStatus() == AttemptStatus.IN_PROGRESS);
     }
 
     public List<ApiDtos.AttemptDto> getMyAttempts() {
@@ -768,7 +777,9 @@ public class PortalService {
             session.getDurationMinutes(),
             session.getMaxAttempts(),
             session.getStatus(),
-            (int) questionCount
+            (int) questionCount,
+            session.isShuffleQuestions(),
+            session.getExam().isShowAnswersAfterSubmit()
         );
     }
 
@@ -789,8 +800,9 @@ public class PortalService {
             )).toList()
             : List.of();
 
+        boolean showAnswersAfterSubmit = attempt.getExamSession().getExam().isShowAnswersAfterSubmit();
         List<ApiDtos.AttemptReviewDto> review = new ArrayList<>();
-        if (!includeQuestions) {
+        if (!includeQuestions && showAnswersAfterSubmit) {
             review = attemptAnswerRepository.findByAttempt_Id(attempt.getId()).stream()
                 .map(answer -> {
                     List<ExamSessionQuestionOption> options = examSessionQuestionOptionRepository
@@ -826,8 +838,17 @@ public class PortalService {
             attempt.getScore(),
             attempt.getCompletionSeconds(),
             questions,
-            review
+            review,
+            showAnswersAfterSubmit
         );
+    }
+
+    private void ensureAttemptAccess(Attempt attempt) {
+        User currentUser = getCurrentUser();
+        RoleName roleName = currentUser.getRole().getName();
+        if (roleName == RoleName.STUDENT && !attempt.getStudent().getId().equals(currentUser.getId())) {
+            throw new NotFoundException("Attempt not found");
+        }
     }
 
     private void ensureExamEditable(Exam exam) {
@@ -849,12 +870,18 @@ public class PortalService {
             throw new BadRequestException("Session exam has no questions to snapshot");
         }
 
-        for (ExamQuestion sourceQuestion : sourceQuestions) {
+        List<ExamQuestion> orderedQuestions = new ArrayList<>(sourceQuestions);
+        if (session.isShuffleQuestions()) {
+            Collections.shuffle(orderedQuestions);
+        }
+
+        for (int index = 0; index < orderedQuestions.size(); index++) {
+            ExamQuestion sourceQuestion = orderedQuestions.get(index);
             ExamSessionQuestion snapshotQuestion = new ExamSessionQuestion();
             snapshotQuestion.setExamSession(session);
             snapshotQuestion.setSourceQuestionId(sourceQuestion.getQuestion().getId());
             snapshotQuestion.setContent(sourceQuestion.getQuestion().getContent());
-            snapshotQuestion.setDisplayOrder(sourceQuestion.getDisplayOrder());
+            snapshotQuestion.setDisplayOrder(index + 1);
             ExamSessionQuestion savedQuestion = examSessionQuestionRepository.save(snapshotQuestion);
 
             List<QuestionOption> sourceOptions = questionOptionRepository.findByQuestion_IdOrderByOptionLabelAsc(

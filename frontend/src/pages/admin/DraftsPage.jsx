@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { PageSection } from '../../components/CommonUI'
+import DraftList from '../../components/DraftList'
 import { api } from '../../lib/appCore'
 
 const emptyExamForm = {
   title: '',
   subjectId: '',
   requiredQuestionCount: 10,
+  showAnswersAfterSubmit: false,
 }
 
 function ExamEditor({ form, subjects, busy, editingId, onChange, onSubjectChange, onSubmit }) {
@@ -45,6 +47,15 @@ function ExamEditor({ form, subjects, busy, editingId, onChange, onSubjectChange
           />
         </label>
       </div>
+
+      <label className="session-toggle-field">
+        <span>Show correct answers after submit</span>
+        <input
+          type="checkbox"
+          checked={form.showAnswersAfterSubmit}
+          onChange={(event) => onChange('showAnswersAfterSubmit', event.target.checked)}
+        />
+      </label>
     </form>
   )
 }
@@ -222,6 +233,7 @@ export default function DraftsPage() {
           title: form.title.trim(),
           subjectId: Number(value),
           requiredQuestionCount: Number(form.requiredQuestionCount),
+          showAnswersAfterSubmit: form.showAnswersAfterSubmit,
         }
 
         await api.put(`/drafts/${editingExamId}`, payload)
@@ -270,6 +282,7 @@ export default function DraftsPage() {
       title: exam.title,
       subjectId: String(exam.subjectId),
       requiredQuestionCount: exam.requiredQuestionCount || exam.questionCount || 1,
+      showAnswersAfterSubmit: Boolean(exam.showAnswersAfterSubmit),
     })
   }
 
@@ -283,6 +296,7 @@ export default function DraftsPage() {
         title: form.title.trim(),
         subjectId: Number(form.subjectId),
         requiredQuestionCount: Number(form.requiredQuestionCount),
+        showAnswersAfterSubmit: form.showAnswersAfterSubmit,
       }
 
       if (editingExamId) {
@@ -458,75 +472,24 @@ export default function DraftsPage() {
   return (
     <PageSection title="Draft Management" compactHeader>
       <div className="draft-workspace">
-        <div className="panel stack draft-sidebar-panel">
-          <div className="row-between wrap-row">
-            <h3>Draft list</h3>
-            <button type="button" className="primary-button" onClick={beginCreate}>
-              Create draft
-            </button>
-          </div>
-
+        <div className="stack">
           <div className="draft-status-slot">
             {error ? <p className="error-text">{error}</p> : null}
             {!error && message ? <p className="success-text">{message}</p> : null}
           </div>
-
-          <div className="draft-list">
-            {exams.map((exam) => (
-              <article
-                key={exam.id}
-                className={selectedExamId === exam.id ? 'question-card selected-card draft-list-card draft-list-card-compact' : 'question-card draft-list-card draft-list-card-compact'}
-                onClick={() => {
-                  setSelectedExamId(exam.id)
-                  beginEdit(exam)
-                }}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault()
-                    setSelectedExamId(exam.id)
-                    beginEdit(exam)
-                  }
-                }}
-              >
-                <div className="row-between wrap-row">
-                  <div className="draft-card-copy">
-                    <h3>{exam.title}</h3>
-                    <p className="muted">{exam.subjectName}</p>
-                  </div>
-                  <div className="action-row draft-card-actions">
-                    <span className="muted draft-card-count">{exam.questionCount} / {exam.requiredQuestionCount}</span>
-                    <button
-                      type="button"
-                      className="ghost-button draft-card-button"
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        handleOpenPreview(exam)
-                      }}
-                      disabled={busy}
-                    >
-                      Preview
-                    </button>
-                    <button
-                      type="button"
-                      className="icon-button danger-icon-button draft-card-icon"
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        handleDeleteExam(exam.id)
-                      }}
-                      disabled={busy}
-                      aria-label={`Delete ${exam.title}`}
-                    >
-                      x
-                    </button>
-                  </div>
-                </div>
-              </article>
-            ))}
-          </div>
-
-          {!exams.length ? <p className="muted">No drafts yet. Create the first draft to get started.</p> : null}
+          <DraftList
+            drafts={exams}
+            selectedDraftId={selectedExamId}
+            busy={busy}
+            onCreate={beginCreate}
+            onSelect={(exam) => {
+              setSelectedExamId(exam.id)
+              beginEdit(exam)
+            }}
+            onPreview={handleOpenPreview}
+            onDelete={(exam) => handleDeleteExam(exam.id)}
+            emptyMessage="No drafts yet. Create the first draft to get started."
+          />
         </div>
 
         <div className="stack draft-main-column">

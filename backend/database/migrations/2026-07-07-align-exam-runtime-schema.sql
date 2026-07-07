@@ -34,6 +34,12 @@ BEGIN
 END
 GO
 
+IF COL_LENGTH('exam_sessions', 'shuffle_questions') IS NULL
+BEGIN
+    ALTER TABLE exam_sessions ADD shuffle_questions BIT NOT NULL CONSTRAINT df_exam_sessions_shuffle_questions DEFAULT 0;
+END
+GO
+
 IF COL_LENGTH('exams', 'duration_minutes') IS NOT NULL
     AND NOT EXISTS (
         SELECT 1
