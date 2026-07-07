@@ -2,18 +2,27 @@ import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { api, normalizeCrudPayload } from '../lib/appCore'
 
-export function PageSection({ title, description, children }) {
+export function PageSection({
+  title,
+  description,
+  children,
+  hidePath = false,
+  compactHeader = false,
+}) {
   const location = useLocation()
+  const showHeader = Boolean(title || description || !hidePath)
 
   return (
     <section className="page">
-      <header className="page-header">
-        <div>
-          <p className="eyebrow">{location.pathname}</p>
-          <h2>{title}</h2>
-          <p className="muted">{description}</p>
-        </div>
-      </header>
+      {showHeader ? (
+        <header className={compactHeader ? 'page-header page-header-compact' : 'page-header'}>
+          <div>
+            {!hidePath ? <p className="eyebrow">{location.pathname}</p> : null}
+            {title ? <h2>{title}</h2> : null}
+            {description ? <p className="muted">{description}</p> : null}
+          </div>
+        </header>
+      ) : null}
       {children}
     </section>
   )

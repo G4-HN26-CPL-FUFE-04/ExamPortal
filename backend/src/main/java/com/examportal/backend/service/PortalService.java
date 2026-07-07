@@ -282,10 +282,6 @@ public class PortalService {
         return examRepository.findAll().stream().map(this::toExamDto).toList();
     }
 
-    public List<ApiDtos.ExamDto> getPublishedExams() {
-        return examRepository.findByPublishedTrue().stream().map(this::toExamDto).toList();
-    }
-
     public ApiDtos.ExamDto getDraft(Long id) {
         return toExamDto(findExam(id));
     }
@@ -309,30 +305,6 @@ public class PortalService {
         if (exam.getCreatedBy() == null) {
             exam.setCreatedBy(getCurrentUser());
         }
-        if (id == null) {
-            exam.setPublished(false);
-        }
-        return toExamDto(examRepository.save(exam));
-    }
-
-    public ApiDtos.ExamDto publishExam(Long id) {
-        Exam exam = findExam(id);
-        ensureExamEditable(exam);
-        long questionCount = examQuestionRepository.countByExam_Id(id);
-        if (questionCount < 1) {
-            throw new BadRequestException("Draft must contain at least 1 question before publish");
-        }
-        if (questionCount != exam.getRequiredQuestionCount()) {
-            throw new BadRequestException("Draft question count must exactly match the required question count before publish");
-        }
-        exam.setPublished(true);
-        return toExamDto(examRepository.save(exam));
-    }
-
-    public ApiDtos.ExamDto unpublishExam(Long id) {
-        Exam exam = findExam(id);
-        ensureExamEditable(exam);
-        exam.setPublished(false);
         return toExamDto(examRepository.save(exam));
     }
 
@@ -450,8 +422,12 @@ public class PortalService {
         }
         ExamSession session = id == null ? new ExamSession() : findExamSession(id);
         Exam exam = findExam(payload.examId());
-        if (!exam.isPublished()) {
-            throw new BadRequestException("Only published exams can be scheduled into sessions");
+        long questionCount = examQuestionRepository.countByExam_Id(exam.getId());
+        if (questionCount < 1) {
+            throw new BadRequestException("Draft must contain at least 1 question before creating a session");
+        }
+        if (questionCount != exam.getRequiredQuestionCount()) {
+            throw new BadRequestException("Draft question count must exactly match the required question count before creating a session");
         }
         session.setExam(exam);
         session.setTitle(payload.title());

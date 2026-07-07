@@ -2,6 +2,12 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { api } from '../lib/appCore'
 
+function getDefaultRouteForRole(role) {
+  if (role === 'ADMIN') return '/admin'
+  if (role === 'INSTRUCTOR') return '/instructor'
+  return '/student'
+}
+
 function AuthPage({ mode, setAuth }) {
   const navigate = useNavigate()
   const [form, setForm] = useState({ fullName: '', email: '', password: '' })
@@ -18,7 +24,7 @@ function AuthPage({ mode, setAuth }) {
       const payload = isLogin ? { email: form.email, password: form.password } : form
       const { data } = await api.post(endpoint, payload)
       setAuth(data)
-      navigate('/dashboard')
+      navigate(getDefaultRouteForRole(data.user.role))
     } catch (requestError) {
       setError(requestError.response?.data?.message || 'Unable to authenticate.')
     } finally {

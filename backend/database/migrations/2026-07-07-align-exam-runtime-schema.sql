@@ -34,6 +34,45 @@ BEGIN
 END
 GO
 
+IF COL_LENGTH('exams', 'duration_minutes') IS NOT NULL
+    AND NOT EXISTS (
+        SELECT 1
+        FROM sys.default_constraints dc
+        INNER JOIN sys.columns c ON c.default_object_id = dc.object_id
+        INNER JOIN sys.tables t ON t.object_id = c.object_id
+        WHERE t.name = 'exams' AND c.name = 'duration_minutes'
+    )
+BEGIN
+    ALTER TABLE exams ADD CONSTRAINT df_exams_duration_minutes DEFAULT 60 FOR duration_minutes;
+END
+GO
+
+IF COL_LENGTH('exams', 'total_score') IS NOT NULL
+    AND NOT EXISTS (
+        SELECT 1
+        FROM sys.default_constraints dc
+        INNER JOIN sys.columns c ON c.default_object_id = dc.object_id
+        INNER JOIN sys.tables t ON t.object_id = c.object_id
+        WHERE t.name = 'exams' AND c.name = 'total_score'
+    )
+BEGIN
+    ALTER TABLE exams ADD CONSTRAINT df_exams_total_score DEFAULT 10 FOR total_score;
+END
+GO
+
+IF COL_LENGTH('exams', 'status') IS NOT NULL
+    AND NOT EXISTS (
+        SELECT 1
+        FROM sys.default_constraints dc
+        INNER JOIN sys.columns c ON c.default_object_id = dc.object_id
+        INNER JOIN sys.tables t ON t.object_id = c.object_id
+        WHERE t.name = 'exams' AND c.name = 'status'
+    )
+BEGIN
+    ALTER TABLE exams ADD CONSTRAINT df_exams_status DEFAULT 'DRAFT' FOR status;
+END
+GO
+
 IF OBJECT_ID(N'exam_session_questions', N'U') IS NULL
 BEGIN
     CREATE TABLE exam_session_questions (

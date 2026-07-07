@@ -4,31 +4,49 @@ import { emptyAuth } from '../lib/appCore'
 
 function Shell({ auth, setAuth }) {
   const navigate = useNavigate()
-  const isAdminArea = auth.user.role === 'ADMIN' || auth.user.role === 'INSTRUCTOR'
+  const role = auth.user.role
+  const basePath = role === 'ADMIN' ? '/admin' : role === 'INSTRUCTOR' ? '/instructor' : '/student'
+  const dashboardPath = basePath
 
-  const navItems = useMemo(() => {
-    const common = [
-      { to: '/dashboard', label: 'Dashboard' },
-      { to: '/exam-sessions', label: 'Exam Sessions' },
-      { to: '/my-attempts', label: 'My Attempts' },
-      { to: '/profile', label: 'Profile' },
+  const navGroups = useMemo(() => {
+    if (role === 'STUDENT') {
+      return [
+        { label: 'Dashboard', items: [{ to: dashboardPath, label: 'Dashboard' }] },
+        { label: 'Exams', items: [{ to: `${basePath}/exam-sessions`, label: 'Exam Sessions' }] },
+        { label: 'Reports', items: [{ to: `${basePath}/my-attempts`, label: 'My Attempts' }] },
+      ]
+    }
+
+    const examItems = [
+      { to: `${basePath}/exam-sessions`, label: 'Exam Sessions' },
+      { to: `${basePath}/drafts`, label: 'Drafts' },
+      { to: `${basePath}/questions`, label: 'Questions' },
     ]
 
-    if (!isAdminArea) return common
+    if (role === 'ADMIN') {
+      examItems.push({ to: '/admin/subjects', label: 'Subjects' })
+    }
+
+    const reportItems = [{ to: `${basePath}/results`, label: 'Results' }]
+    if (role === 'ADMIN') {
+      reportItems.push({ to: '/admin/statistics', label: 'Statistics' })
+    }
 
     return [
-      ...common,
-      { to: '/admin', label: 'Admin Home' },
-      { to: '/admin/users', label: 'Users' },
-      { to: '/admin/subjects', label: 'Subjects' },
-      { to: '/questions', label: 'Questions' },
-      { to: '/draft', label: 'Drafts' },
-      { to: '/admin/exams', label: 'Exams' },
-      { to: '/admin/exam-sessions', label: 'Exam Sessions' },
-      { to: '/admin/results', label: 'Results' },
-      { to: '/admin/statistics', label: 'Statistics' },
+      { label: 'Dashboard', items: [{ to: dashboardPath, label: 'Dashboard' }] },
+      { label: 'Exams', items: examItems },
+      { label: 'Reports', items: reportItems },
     ]
-  }, [isAdminArea])
+  }, [basePath, dashboardPath, role])
+
+  const accountItems = useMemo(() => {
+    const items = [{ to: `${basePath}/profile`, label: 'Profile' }]
+    if (role === 'ADMIN') {
+      items.unshift({ to: '/admin/users', label: 'Users' })
+    }
+    items.push({ action: 'logout', label: 'Log out' })
+    return items
+  }, [basePath, role])
 
   const handleLogout = () => {
     setAuth(emptyAuth)
@@ -37,32 +55,74 @@ function Shell({ auth, setAuth }) {
 
   return (
     <div className="app-shell">
-      <aside className="sidebar">
-        <div>
+      <header className="topbar">
+        <div className="topbar-brand">
           <p className="eyebrow">ExamPortal</p>
-          <h1>Online Exam MVP</h1>
-          <p className="muted">React frontend aligned with the handoff spec.</p>
+          <strong>Online Exam MVP</strong>
         </div>
-        <nav className="nav-list">
-          {navItems.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              className={({ isActive }) => (isActive ? 'nav-item active' : 'nav-item')}
-            >
-              {item.label}
-            </NavLink>
+
+        <nav className="topbar-nav" aria-label="Main navigation">
+          {navGroups.map((group) => (
+            <div key={group.label} className="nav-group">
+              <div className="nav-group-trigger">{group.label}</div>
+              <div className="nav-group-menu">
+                {group.items.map((item) => (
+                  item.to ? (
+                    <NavLink
+                      key={item.to}
+                      to={item.to}
+                      className={({ isActive }) => (isActive ? 'nav-menu-item active' : 'nav-menu-item')}
+                    >
+                      {item.label}
+                    </NavLink>
+                  ) : (
+                    <button
+                      key={item.label}
+                      type="button"
+                      className="nav-menu-item nav-menu-button"
+                      onClick={handleLogout}
+                    >
+                      {item.label}
+                    </button>
+                  )
+                ))}
+              </div>
+            </div>
           ))}
         </nav>
-        <div className="profile-card">
-          <strong>{auth.user.fullName}</strong>
-          <span>{auth.user.email}</span>
-          <span className="pill">{auth.user.role}</span>
-          <button type="button" className="ghost-button" onClick={handleLogout}>
-            Log out
-          </button>
+
+        <div className="topbar-account nav-group">
+          <div className="topbar-account-trigger">
+            <div className="topbar-user">
+              <strong>{auth.user.fullName}</strong>
+              <span>{auth.user.email}</span>
+            </div>
+            <span className="pill">{auth.user.role}</span>
+          </div>
+          <div className="nav-group-menu nav-group-menu-right">
+            {accountItems.map((item) => (
+              item.to ? (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  className={({ isActive }) => (isActive ? 'nav-menu-item active' : 'nav-menu-item')}
+                >
+                  {item.label}
+                </NavLink>
+              ) : (
+                <button
+                  key={item.label}
+                  type="button"
+                  className="nav-menu-item nav-menu-button"
+                  onClick={handleLogout}
+                >
+                  {item.label}
+                </button>
+              )
+            ))}
+          </div>
         </div>
-      </aside>
+      </header>
 
       <main className="content">
         <Outlet />
