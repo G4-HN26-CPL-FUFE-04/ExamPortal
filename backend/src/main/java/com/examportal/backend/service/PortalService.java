@@ -1,0 +1,653 @@
+package com.examportal.backend.service;
+
+import com.examportal.backend.dto.ApiDtos;
+import com.examportal.backend.entity.Attempt;
+import com.examportal.backend.entity.AttemptAnswer;
+import com.examportal.backend.entity.Exam;
+import com.examportal.backend.entity.ExamQuestion;
+import com.examportal.backend.entity.ExamSession;
+import com.examportal.backend.entity.Question;
+import com.examportal.backend.entity.QuestionOption;
+import com.examportal.backend.entity.Role;
+import com.examportal.backend.entity.Subject;
+import com.examportal.backend.entity.Topic;
+import com.examportal.backend.entity.User;
+import com.examportal.backend.entity.enums.AttemptStatus;
+import com.examportal.backend.entity.enums.QuestionStatus;
+import com.examportal.backend.entity.enums.RoleName;
+import com.examportal.backend.entity.enums.SessionStatus;
+import com.examportal.backend.entity.enums.UserStatus;
+import com.examportal.backend.exception.BadRequestException;
+import com.examportal.backend.exception.NotFoundException;
+import com.examportal.backend.repository.AttemptAnswerRepository;
+import com.examportal.backend.repository.AttemptRepository;
+import com.examportal.backend.repository.ExamQuestionRepository;
+import com.examportal.backend.repository.ExamRepository;
+import com.examportal.backend.repository.ExamSessionRepository;
+import com.examportal.backend.repository.QuestionOptionRepository;
+import com.examportal.backend.repository.QuestionRepository;
+import com.examportal.backend.repository.RoleRepository;
+import com.examportal.backend.repository.SubjectRepository;
+import com.examportal.backend.repository.TopicRepository;
+import com.examportal.backend.repository.UserRepository;
+import com.examportal.backend.security.JwtService;
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+@Transactional
+public class PortalService {
+    private final UserRepository userRepository;
+    private final RoleRepository roleRepository;
+    private final SubjectRepository subjectRepository;
+    private final TopicRepository topicRepository;
+    private final QuestionRepository questionRepository;
+    private final QuestionOptionRepository questionOptionRepository;
+    private final ExamRepository examRepository;
+    private final ExamQuestionRepository examQuestionRepository;
+    private final ExamSessionRepository examSessionRepository;
+    private final AttemptRepository attemptRepository;
+    private final AttemptAnswerRepository attemptAnswerRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final AuthenticationManager authenticationManager;
+    private final JwtService jwtService;
+
+    public PortalService(UserRepository userRepository, RoleRepository roleRepository, SubjectRepository subjectRepository,
+                         TopicRepository topicRepository, QuestionRepository questionRepository,
+                         QuestionOptionRepository questionOptionRepository, ExamRepository examRepository,
+                         ExamQuestionRepository examQuestionRepository, ExamSessionRepository examSessionRepository,
+                         AttemptRepository attemptRepository, AttemptAnswerRepository attemptAnswerRepository,
+                         PasswordEncoder passwordEncoder, AuthenticationManager authenticationManager,
+                         JwtService jwtService) {
+        this.userRepository = userRepository;
+        this.roleRepository = roleRepository;
+        this.subjectRepository = subjectRepository;
+        this.topicRepository = topicRepository;
+        this.questionRepository = questionRepository;
+        this.questionOptionRepository = questionOptionRepository;
+        this.examRepository = examRepository;
+        this.examQuestionRepository = examQuestionRepository;
+        this.examSessionRepository = examSessionRepository;
+        this.attemptRepository = attemptRepository;
+        this.attemptAnswerRepository = attemptAnswerRepository;
+        this.passwordEncoder = passwordEncoder;
+        this.authenticationManager = authenticationManager;
+        this.jwtService = jwtService;
+    }
+
+    public ApiDtos.AuthResponse register(ApiDtos.RegisterRequest request) {
+        if (userRepository.existsByEmail(request.email())) {
+            throw new BadRequestException("Email already exists");
+        }
+
+        User user = new User();
+        user.setFullName(request.fullName());
+        user.setEmail(request.email());
+        user.setPasswordHash(passwordEncoder.encode(request.password()));
+        user.setRole(getRole(RoleName.STUDENT));
+        user.setStatus(UserStatus.ACTIVE);
+        userRepository.save(user);
+        return buildAuthResponse(user);
+    }
+
+    public ApiDtos.AuthResponse login(ApiDtos.AuthRequest request) {
+        authenticationManager.authenticate(
+            new UsernamePasswordAuthenticationToken(request.email(), request.password())
+        );
+        User user = getUserByEmail(request.email());
+        return buildAuthResponse(user);
+    }
+
+    public ApiDtos.UserDto me() {
+        return toUserDto(getCurrentUser());
+    }
+
+    public void changePassword(ApiDtos.ChangePasswordRequest request) {
+        User user = getCurrentUser();
+        if (!passwordEncoder.matches(request.currentPassword(), user.getPasswordHash())) {
+            throw new BadRequestException("Current password is incorrect");
+        }
+        user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
+        userRepository.save(user);
+    }
+
+    public List<ApiDtos.UserDto> getUsers(String keyword, UserStatus status) {
+        List<User> users;
+        if (keyword != null && !keyword.isBlank()) {
+            users = userRepository.findByFullNameContainingIgnoreCaseOrEmailContainingIgnoreCase(keyword, keyword);
+        } else if (status != null) {
+            users = userRepository.findByStatus(status);
+        } else {
+            users = userRepository.findAll();
+        }
+        return users.stream().map(this::toUserDto).toList();
+    }
+
+    public ApiDtos.UserDto getUser(Long id) {
+        return toUserDto(findUser(id));
+    }
+
+    public ApiDtos.UserDto saveUser(ApiDtos.UserPayload payload, Long id) {
+        User user = id == null ? new User() : findUser(id);
+        if (id == null && userRepository.existsByEmail(payload.email())) {
+            throw new BadRequestException("Email already exists");
+        }
+        user.setFullName(payload.fullName());
+        user.setEmail(payload.email());
+        if (payload.password() != null && !payload.password().isBlank()) {
+            user.setPasswordHash(passwordEncoder.encode(payload.password()));
+        } else if (user.getPasswordHash() == null) {
+            throw new BadRequestException("Password is required");
+        }
+        user.setRole(getRole(payload.role()));
+        user.setStatus(payload.status() == null ? UserStatus.ACTIVE : payload.status());
+        return toUserDto(userRepository.save(user));
+    }
+
+    public ApiDtos.UserDto updateUserStatus(Long id, UserStatus status) {
+        User user = findUser(id);
+        user.setStatus(status);
+        return toUserDto(userRepository.save(user));
+    }
+
+    public ApiDtos.UserDto updateUserRole(Long id, RoleName roleName) {
+        User user = findUser(id);
+        user.setRole(getRole(roleName));
+        return toUserDto(userRepository.save(user));
+    }
+
+    public List<ApiDtos.SubjectDto> getSubjects() {
+        return subjectRepository.findAll().stream()
+            .map(subject -> new ApiDtos.SubjectDto(subject.getId(), subject.getName(), subject.getDescription()))
+            .toList();
+    }
+
+    public ApiDtos.SubjectDto saveSubject(ApiDtos.SubjectPayload payload, Long id) {
+        Subject subject = id == null ? new Subject() : findSubject(id);
+        subject.setName(payload.name());
+        subject.setDescription(payload.description());
+        if (subject.getCreatedBy() == null) {
+            subject.setCreatedBy(getCurrentUser());
+        }
+        Subject saved = subjectRepository.save(subject);
+        return new ApiDtos.SubjectDto(saved.getId(), saved.getName(), saved.getDescription());
+    }
+
+    public void deleteSubject(Long id) {
+        subjectRepository.delete(findSubject(id));
+    }
+
+    public List<ApiDtos.TopicDto> getTopics() {
+        return topicRepository.findAll().stream()
+            .map(topic -> new ApiDtos.TopicDto(topic.getId(), topic.getSubject().getId(), topic.getName(), topic.getDescription()))
+            .toList();
+    }
+
+    public ApiDtos.TopicDto saveTopic(ApiDtos.TopicPayload payload, Long id) {
+        Topic topic = id == null ? new Topic() : findTopic(id);
+        topic.setName(payload.name());
+        topic.setDescription(payload.description());
+        topic.setSubject(findSubject(payload.subjectId()));
+        Topic saved = topicRepository.save(topic);
+        return new ApiDtos.TopicDto(saved.getId(), saved.getSubject().getId(), saved.getName(), saved.getDescription());
+    }
+
+    public void deleteTopic(Long id) {
+        topicRepository.delete(findTopic(id));
+    }
+
+    public List<ApiDtos.QuestionSummaryDto> getQuestions(String keyword, QuestionStatus status) {
+        List<Question> questions;
+        if (keyword != null && !keyword.isBlank()) {
+            questions = questionRepository.findByContentContainingIgnoreCase(keyword);
+        } else if (status != null) {
+            questions = questionRepository.findByStatus(status);
+        } else {
+            questions = questionRepository.findAll();
+        }
+        return questions.stream().map(this::toQuestionSummaryDto).toList();
+    }
+
+    public ApiDtos.QuestionDetailDto getQuestion(Long id) {
+        return toQuestionDetailDto(findQuestion(id));
+    }
+
+    public ApiDtos.QuestionDetailDto saveQuestion(ApiDtos.QuestionPayload payload, Long id) {
+        long correctCount = payload.options().stream().filter(ApiDtos.OptionPayload::correct).count();
+        if (correctCount != 1) {
+            throw new BadRequestException("Exactly 1 correct option is required");
+        }
+
+        Question question = id == null ? new Question() : findQuestion(id);
+        question.setContent(payload.content());
+        question.setSubject(findSubject(payload.subjectId()));
+        question.setTopic(findTopic(payload.topicId()));
+        question.setDifficulty(payload.difficulty());
+        question.setStatus(payload.status() == null ? QuestionStatus.ENABLED : payload.status());
+        question.setExplanation(payload.explanation());
+        if (question.getCreatedBy() == null) {
+            question.setCreatedBy(getCurrentUser());
+        }
+        Question saved = questionRepository.save(question);
+
+        if (id != null) {
+            questionOptionRepository.deleteAll(questionOptionRepository.findByQuestion_IdOrderByOptionLabelAsc(id));
+        }
+
+        payload.options().forEach(optionPayload -> {
+            QuestionOption option = new QuestionOption();
+            option.setQuestion(saved);
+            option.setOptionLabel(optionPayload.label());
+            option.setOptionContent(optionPayload.content());
+            option.setCorrect(optionPayload.correct());
+            questionOptionRepository.save(option);
+        });
+
+        return toQuestionDetailDto(saved);
+    }
+
+    public void deleteQuestion(Long id) {
+        questionOptionRepository.deleteAll(questionOptionRepository.findByQuestion_IdOrderByOptionLabelAsc(id));
+        questionRepository.delete(findQuestion(id));
+    }
+
+    public ApiDtos.QuestionDetailDto updateQuestionStatus(Long id, QuestionStatus status) {
+        Question question = findQuestion(id);
+        question.setStatus(status);
+        return toQuestionDetailDto(questionRepository.save(question));
+    }
+
+    public List<ApiDtos.ExamDto> getExams() {
+        return examRepository.findAll().stream().map(this::toExamDto).toList();
+    }
+
+    public ApiDtos.ExamDto getExam(Long id) {
+        return toExamDto(findExam(id));
+    }
+
+    public ApiDtos.ExamDto saveExam(ApiDtos.ExamPayload payload, Long id) {
+        Exam exam = id == null ? new Exam() : findExam(id);
+        exam.setTitle(payload.title());
+        exam.setDescription(payload.description());
+        exam.setSubject(findSubject(payload.subjectId()));
+        exam.setDurationMinutes(payload.durationMinutes());
+        exam.setTotalScore(payload.totalScore());
+        exam.setStatus(payload.status());
+        exam.setShowAnswersAfterSubmit(payload.showAnswersAfterSubmit());
+        if (exam.getCreatedBy() == null) {
+            exam.setCreatedBy(getCurrentUser());
+        }
+        if (payload.status().name().equals("PUBLISHED") && id != null && examQuestionRepository.countByExam_Id(id) < 1) {
+            throw new BadRequestException("Exam must contain at least 1 question before publish");
+        }
+        return toExamDto(examRepository.save(exam));
+    }
+
+    public void deleteExam(Long id) {
+        examRepository.delete(findExam(id));
+    }
+
+    public ApiDtos.ExamDto addQuestionToExam(Long examId, ApiDtos.ExamQuestionPayload payload) {
+        ExamQuestion examQuestion = new ExamQuestion();
+        examQuestion.setExam(findExam(examId));
+        examQuestion.setQuestion(findQuestion(payload.questionId()));
+        examQuestion.setDisplayOrder(payload.displayOrder());
+        examQuestionRepository.save(examQuestion);
+        return getExam(examId);
+    }
+
+    public void removeQuestionFromExam(Long examId, Long questionId) {
+        examQuestionRepository.deleteByExam_IdAndQuestion_Id(examId, questionId);
+    }
+
+    public List<ApiDtos.ExamSessionDto> getExamSessions() {
+        return examSessionRepository.findAll().stream().map(this::toSessionDto).toList();
+    }
+
+    public ApiDtos.ExamSessionDto getExamSession(Long id) {
+        return toSessionDto(findExamSession(id));
+    }
+
+    public ApiDtos.ExamSessionDto saveExamSession(ApiDtos.ExamSessionPayload payload, Long id) {
+        if (payload.closeTime().isBefore(payload.openTime()) || payload.closeTime().isEqual(payload.openTime())) {
+            throw new BadRequestException("Close time must be after open time");
+        }
+        ExamSession session = id == null ? new ExamSession() : findExamSession(id);
+        session.setExam(findExam(payload.examId()));
+        session.setTitle(payload.title());
+        session.setOpenTime(payload.openTime());
+        session.setCloseTime(payload.closeTime());
+        session.setDurationMinutes(payload.durationMinutes());
+        session.setMaxAttempts(payload.maxAttempts());
+        session.setStatus(payload.status());
+        if (session.getCreatedBy() == null) {
+            session.setCreatedBy(getCurrentUser());
+        }
+        return toSessionDto(examSessionRepository.save(session));
+    }
+
+    public void deleteExamSession(Long id) {
+        examSessionRepository.delete(findExamSession(id));
+    }
+
+    public ApiDtos.ExamSessionDto updateExamSessionStatus(Long id, SessionStatus status) {
+        ExamSession session = findExamSession(id);
+        session.setStatus(status);
+        return toSessionDto(examSessionRepository.save(session));
+    }
+
+    public ApiDtos.AttemptDto startAttempt(Long sessionId) {
+        User student = getCurrentUser();
+        ExamSession session = findExamSession(sessionId);
+        if (session.getStatus() != SessionStatus.ACTIVE) {
+            throw new BadRequestException("Session is not active");
+        }
+        if (LocalDateTime.now().isBefore(session.getOpenTime()) || LocalDateTime.now().isAfter(session.getCloseTime())) {
+            throw new BadRequestException("Session is outside the allowed time window");
+        }
+        if (attemptRepository.countByStudent_IdAndExamSession_Id(student.getId(), sessionId) >= session.getMaxAttempts()) {
+            throw new BadRequestException("Max attempts exceeded");
+        }
+        Attempt attempt = new Attempt();
+        attempt.setExamSession(session);
+        attempt.setStudent(student);
+        attempt.setStatus(AttemptStatus.IN_PROGRESS);
+        attempt.setTotalQuestions((int) examQuestionRepository.countByExam_Id(session.getExam().getId()));
+        return toAttemptDto(attemptRepository.save(attempt), true);
+    }
+
+    public ApiDtos.AttemptDto submitAttempt(Long attemptId, ApiDtos.AttemptSubmitPayload payload) {
+        Attempt attempt = findAttempt(attemptId);
+        if (attempt.getStatus() != AttemptStatus.IN_PROGRESS) {
+            throw new BadRequestException("Attempt cannot be submitted twice");
+        }
+
+        attemptAnswerRepository.deleteAll(attemptAnswerRepository.findByAttempt_Id(attemptId));
+        Map<Long, QuestionOption> optionMap = new HashMap<>();
+        List<ExamQuestion> examQuestions = examQuestionRepository.findByExam_IdOrderByDisplayOrderAsc(
+            attempt.getExamSession().getExam().getId()
+        );
+
+        examQuestions.forEach(examQuestion -> questionOptionRepository.findByQuestion_IdOrderByOptionLabelAsc(
+            examQuestion.getQuestion().getId()
+        ).forEach(option -> optionMap.put(option.getId(), option)));
+
+        int correct = 0;
+        int wrong = 0;
+        int unanswered = 0;
+
+        for (ExamQuestion examQuestion : examQuestions) {
+            ApiDtos.AttemptAnswerPayload answerPayload = payload.answers() == null ? null :
+                payload.answers().stream()
+                    .filter(item -> item.questionId().equals(examQuestion.getQuestion().getId()))
+                    .findFirst()
+                    .orElse(null);
+
+            QuestionOption selectedOption = answerPayload == null || answerPayload.selectedOptionId() == null
+                ? null
+                : optionMap.get(answerPayload.selectedOptionId());
+
+            boolean isCorrect = selectedOption != null && selectedOption.isCorrect();
+
+            AttemptAnswer answer = new AttemptAnswer();
+            answer.setAttempt(attempt);
+            answer.setQuestion(examQuestion.getQuestion());
+            answer.setSelectedOption(selectedOption);
+            answer.setCorrect(isCorrect);
+            attemptAnswerRepository.save(answer);
+
+            if (selectedOption == null) {
+                unanswered++;
+            } else if (isCorrect) {
+                correct++;
+            } else {
+                wrong++;
+            }
+        }
+
+        attempt.setCorrectAnswers(correct);
+        attempt.setWrongAnswers(wrong);
+        attempt.setUnansweredAnswers(unanswered);
+        attempt.setScore(correct);
+        attempt.setSubmittedAt(LocalDateTime.now());
+        attempt.setCompletionSeconds(Duration.between(attempt.getStartedAt(), attempt.getSubmittedAt()).toSeconds());
+        attempt.setStatus(payload.autoSubmitted() ? AttemptStatus.AUTO_SUBMITTED : AttemptStatus.SUBMITTED);
+        return toAttemptDto(attemptRepository.save(attempt), false);
+    }
+
+    public ApiDtos.AttemptDto getAttempt(Long id) {
+        return toAttemptDto(findAttempt(id), false);
+    }
+
+    public List<ApiDtos.AttemptDto> getMyAttempts() {
+        User user = getCurrentUser();
+        return attemptRepository.findByStudent_IdOrderByStartedAtDesc(user.getId()).stream()
+            .map(attempt -> toAttemptDto(attempt, false))
+            .toList();
+    }
+
+    public List<ApiDtos.AttemptDto> getAttemptsBySession(Long sessionId) {
+        return attemptRepository.findByExamSession_Id(sessionId).stream()
+            .map(attempt -> toAttemptDto(attempt, false))
+            .toList();
+    }
+
+    public ApiDtos.DashboardOverviewDto getDashboardOverview() {
+        return new ApiDtos.DashboardOverviewDto(
+            userRepository.count(),
+            userRepository.countByRole_Name(RoleName.STUDENT),
+            userRepository.countByRole_Name(RoleName.INSTRUCTOR),
+            questionRepository.count(),
+            examRepository.count(),
+            examSessionRepository.count(),
+            attemptRepository.count()
+        );
+    }
+
+    public List<ApiDtos.DashboardExamStatsDto> getDashboardExamStats() {
+        return examSessionRepository.findAll().stream().map(session -> {
+            List<Attempt> attempts = attemptRepository.findByExamSession_Id(session.getId());
+            double average = attempts.stream().mapToDouble(Attempt::getScore).average().orElse(0);
+            double highest = attempts.stream().mapToDouble(Attempt::getScore).max().orElse(0);
+            double lowest = attempts.stream().mapToDouble(Attempt::getScore).min().orElse(0);
+            return new ApiDtos.DashboardExamStatsDto(session.getTitle(), average, highest, lowest, attempts.size());
+        }).toList();
+    }
+
+    public ApiDtos.DashboardQuestionStatsDto getDashboardQuestionStats() {
+        return new ApiDtos.DashboardQuestionStatsDto(
+            questionRepository.findByStatus(QuestionStatus.ENABLED).size(),
+            questionRepository.findByStatus(QuestionStatus.DISABLED).size()
+        );
+    }
+
+    private ApiDtos.AuthResponse buildAuthResponse(User user) {
+        org.springframework.security.core.userdetails.User userDetails =
+            new org.springframework.security.core.userdetails.User(
+                user.getEmail(),
+                user.getPasswordHash(),
+                List.of(() -> "ROLE_" + user.getRole().getName().name())
+            );
+        return new ApiDtos.AuthResponse(jwtService.generateToken(userDetails), toUserDto(user));
+    }
+
+    private User getCurrentUser() {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        return getUserByEmail(email);
+    }
+
+    private User getUserByEmail(String email) {
+        return userRepository.findByEmail(email)
+            .orElseThrow(() -> new NotFoundException("User not found"));
+    }
+
+    private User findUser(Long id) {
+        return userRepository.findById(id)
+            .orElseThrow(() -> new NotFoundException("User not found"));
+    }
+
+    private Subject findSubject(Long id) {
+        return subjectRepository.findById(id)
+            .orElseThrow(() -> new NotFoundException("Subject not found"));
+    }
+
+    private Topic findTopic(Long id) {
+        return topicRepository.findById(id)
+            .orElseThrow(() -> new NotFoundException("Topic not found"));
+    }
+
+    private Question findQuestion(Long id) {
+        return questionRepository.findById(id)
+            .orElseThrow(() -> new NotFoundException("Question not found"));
+    }
+
+    private Exam findExam(Long id) {
+        return examRepository.findById(id)
+            .orElseThrow(() -> new NotFoundException("Exam not found"));
+    }
+
+    private ExamSession findExamSession(Long id) {
+        return examSessionRepository.findById(id)
+            .orElseThrow(() -> new NotFoundException("Exam session not found"));
+    }
+
+    private Attempt findAttempt(Long id) {
+        return attemptRepository.findById(id)
+            .orElseThrow(() -> new NotFoundException("Attempt not found"));
+    }
+
+    private Role getRole(RoleName roleName) {
+        return roleRepository.findByName(roleName)
+            .orElseThrow(() -> new NotFoundException("Role not found"));
+    }
+
+    private ApiDtos.UserDto toUserDto(User user) {
+        return new ApiDtos.UserDto(user.getId(), user.getFullName(), user.getEmail(), user.getRole().getName(), user.getStatus());
+    }
+
+    private ApiDtos.QuestionSummaryDto toQuestionSummaryDto(Question question) {
+        return new ApiDtos.QuestionSummaryDto(
+            question.getId(),
+            question.getContent(),
+            question.getDifficulty(),
+            question.getStatus(),
+            question.getSubject().getName(),
+            question.getTopic().getName()
+        );
+    }
+
+    private ApiDtos.QuestionDetailDto toQuestionDetailDto(Question question) {
+        List<ApiDtos.OptionDto> options = questionOptionRepository.findByQuestion_IdOrderByOptionLabelAsc(question.getId()).stream()
+            .map(option -> new ApiDtos.OptionDto(option.getId(), option.getOptionLabel(), option.getOptionContent(), option.isCorrect()))
+            .toList();
+
+        return new ApiDtos.QuestionDetailDto(
+            question.getId(),
+            question.getContent(),
+            question.getDifficulty(),
+            question.getStatus(),
+            question.getExplanation(),
+            question.getSubject().getId(),
+            question.getTopic().getId(),
+            options
+        );
+    }
+
+    private ApiDtos.ExamDto toExamDto(Exam exam) {
+        return new ApiDtos.ExamDto(
+            exam.getId(),
+            exam.getTitle(),
+            exam.getDescription(),
+            exam.getSubject().getId(),
+            exam.getSubject().getName(),
+            exam.getDurationMinutes(),
+            exam.getTotalScore(),
+            exam.getStatus(),
+            exam.isShowAnswersAfterSubmit(),
+            (int) examQuestionRepository.countByExam_Id(exam.getId())
+        );
+    }
+
+    private ApiDtos.ExamSessionDto toSessionDto(ExamSession session) {
+        return new ApiDtos.ExamSessionDto(
+            session.getId(),
+            session.getExam().getId(),
+            session.getExam().getTitle(),
+            session.getTitle(),
+            session.getOpenTime(),
+            session.getCloseTime(),
+            session.getDurationMinutes(),
+            session.getMaxAttempts(),
+            session.getStatus(),
+            (int) examQuestionRepository.countByExam_Id(session.getExam().getId())
+        );
+    }
+
+    private ApiDtos.AttemptDto toAttemptDto(Attempt attempt, boolean includeQuestions) {
+        List<ExamQuestion> examQuestions = examQuestionRepository.findByExam_IdOrderByDisplayOrderAsc(
+            attempt.getExamSession().getExam().getId()
+        );
+
+        List<ApiDtos.AttemptQuestionDto> questions = includeQuestions
+            ? examQuestions.stream().map(item -> new ApiDtos.AttemptQuestionDto(
+                item.getQuestion().getId(),
+                item.getQuestion().getContent(),
+                item.getDisplayOrder(),
+                questionOptionRepository.findByQuestion_IdOrderByOptionLabelAsc(item.getQuestion().getId()).stream()
+                    .map(option -> new ApiDtos.OptionDto(option.getId(), option.getOptionLabel(), option.getOptionContent(), false))
+                    .toList()
+            )).toList()
+            : List.of();
+
+        List<ApiDtos.AttemptReviewDto> review = new ArrayList<>();
+        if (!includeQuestions) {
+            review = attemptAnswerRepository.findByAttempt_Id(attempt.getId()).stream()
+                .map(answer -> {
+                    List<QuestionOption> options = questionOptionRepository.findByQuestion_IdOrderByOptionLabelAsc(answer.getQuestion().getId());
+                    String correctLabel = options.stream().filter(QuestionOption::isCorrect).findFirst().map(QuestionOption::getOptionLabel).orElse(null);
+                    String selectedLabel = answer.getSelectedOption() == null ? null : answer.getSelectedOption().getOptionLabel();
+                    return new ApiDtos.AttemptReviewDto(
+                        answer.getQuestion().getId(),
+                        answer.getQuestion().getContent(),
+                        selectedLabel,
+                        correctLabel,
+                        answer.isCorrect(),
+                        answer.getQuestion().getExplanation()
+                    );
+                })
+                .sorted(Comparator.comparing(ApiDtos.AttemptReviewDto::questionId))
+                .collect(Collectors.toCollection(ArrayList::new));
+        }
+
+        return new ApiDtos.AttemptDto(
+            attempt.getId(),
+            attempt.getExamSession().getId(),
+            attempt.getExamSession().getTitle(),
+            attempt.getExamSession().getExam().getTitle(),
+            attempt.getExamSession().getDurationMinutes(),
+            attempt.getStatus(),
+            attempt.getStartedAt(),
+            attempt.getSubmittedAt(),
+            attempt.getTotalQuestions(),
+            attempt.getCorrectAnswers(),
+            attempt.getWrongAnswers(),
+            attempt.getUnansweredAnswers(),
+            attempt.getScore(),
+            attempt.getCompletionSeconds(),
+            questions,
+            review
+        );
+    }
+}

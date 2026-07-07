@@ -1,0 +1,716 @@
+PROJECT HANDOFF SPEC
+ExamPortal
+
+1. PROJECT IDENTITY
+
+Project name: ExamPortal
+Repository/folder name: exam-portal
+Frontend: React
+Backend: Spring Boot
+Database: SQL Server
+
+Current implementation priority:
+Focus on building a strong and complete online examination system first.
+Challenge mode and leaderboard are future extensions and should NOT be included in the main implementation scope right now.
+
+
+2. PROJECT OVERVIEW
+
+ExamPortal is a full-stack web application for online multiple-choice examinations.
+
+This is not just a management website. The core business happens directly inside the system:
+- instructors create questions and exams
+- students log in and take exams directly on the website
+- the system automatically grades submissions
+- students view their results
+- instructors and admins review attempts and statistics
+
+Main business focus:
+- exam creation
+- exam scheduling
+- online exam participation
+- automatic grading
+- result management
+
+Future extension:
+- public challenge mode
+- leaderboard and ranking
+
+
+3. CORE SCOPE FOR CURRENT VERSION
+
+The current version must focus on exam features only.
+
+Included:
+- authentication and authorization
+- user management
+- subject/topic management
+- question bank management
+- exam management
+- exam session/scheduling management
+- online exam participation
+- automatic grading
+- result review
+- basic statistics
+
+Excluded from current version:
+- challenge mode
+- leaderboard
+- essay questions
+- coding questions
+- manual grading
+- webcam proctoring
+- advanced anti-cheat
+- realtime features via WebSocket
+
+
+4. MAIN ROLES
+
+4.1. Student
+- register account
+- log in / log out
+- view available exams
+- start an exam
+- answer multiple-choice questions online
+- submit exam
+- receive automatic score
+- view detailed result
+- view own attempt history
+- update own profile
+
+4.2. Instructor
+- manage question bank
+- manage subjects/topics
+- create and manage exams
+- create and manage exam sessions
+- monitor student attempts
+- review results
+- view basic statistics
+
+4.3. Admin
+- manage all users
+- assign roles
+- lock/unlock accounts
+- manage subjects/topics
+- view all exams and sessions
+- view system-wide dashboard/statistics
+
+
+5. QUESTION TYPE RULES
+
+The first version should support only:
+- multiple-choice questions
+- single correct answer
+- exactly 4 options per question: A, B, C, D
+
+Do not include:
+- essay questions
+- multiple correct answers
+- coding questions
+
+
+6. MAIN FEATURES
+
+6.1. Authentication and Authorization
+- register
+- login
+- logout
+- JWT authentication
+- role-based authorization
+- protected frontend routes
+- change password
+
+6.2. User Management
+- admin views user list
+- search users
+- filter by role/status
+- create user
+- edit user
+- assign role
+- lock/unlock user
+
+6.3. Profile Management
+- user views own profile
+- user updates own profile
+- user changes password
+
+6.4. Subject and Topic Management
+- create subject
+- edit subject
+- delete subject
+- create topic
+- edit topic
+- delete topic
+
+6.5. Question Bank Management
+- create question
+- edit question
+- delete question
+- enable/disable question
+- assign subject/topic/difficulty
+- search/filter questions
+- preview question
+
+Question fields:
+- content
+- option A
+- option B
+- option C
+- option D
+- correct option
+- explanation (optional)
+- difficulty
+- status
+- created_by
+
+6.6. Exam Management
+- create exam
+- edit exam
+- delete exam
+- add questions to exam
+- remove questions from exam
+- reorder questions
+- configure duration
+- configure total score
+- configure status
+- configure whether answers are shown after submission
+
+Exam states:
+- draft
+- published
+- archived
+
+6.7. Exam Session Management
+
+An exam session is a scheduled instance of an exam that students can take.
+
+Features:
+- create exam session
+- edit exam session
+- delete exam session
+- assign an exam to the session
+- set open time
+- set close time
+- set duration
+- set attempt limit
+- activate/deactivate session
+
+Session states:
+- upcoming
+- active
+- closed
+- cancelled
+
+6.8. Online Exam Participation
+- student views exam session list
+- student opens exam session details
+- student starts exam
+- system creates attempt record
+- student answers questions online
+- student moves between questions
+- student sees countdown timer
+- student submits exam
+- system auto-submits when time runs out
+
+6.9. Automatic Grading
+- compare selected answers with correct answers
+- count correct answers
+- count wrong answers
+- count unanswered questions
+- calculate final score
+- store submission result
+
+6.10. Result Review
+- student views own result summary
+- student views answer details
+- show selected answer
+- show correct answer
+- show correct/incorrect status
+- show score
+- show total time spent
+
+6.11. Instructor/Admin Monitoring
+- view attempt list by exam session
+- view result details for each student
+- search attempts
+- filter attempts by exam/session/student
+- view basic reports
+
+6.12. Dashboard and Statistics
+- total users
+- total students
+- total instructors
+- total questions
+- total exams
+- total exam sessions
+- total attempts
+- average score by exam session
+- highest/lowest score
+- participation counts
+
+
+7. MAIN BUSINESS FLOWS
+
+7.1. Instructor creates an exam
+1. Instructor logs in
+2. Instructor creates subjects/topics if needed
+3. Instructor creates questions in question bank
+4. Instructor creates an exam
+5. Instructor adds questions to the exam
+6. Instructor configures duration, score, and visibility
+7. Instructor publishes the exam
+
+7.2. Instructor creates an exam session
+1. Instructor selects an existing exam
+2. Instructor creates an exam session
+3. Instructor sets:
+   - open time
+   - close time
+   - duration
+   - attempt limit
+4. Instructor activates the session
+
+7.3. Student takes an exam
+1. Student registers or logs in
+2. Student views available exam sessions
+3. Student opens an exam session detail page
+4. Student clicks Start Exam
+5. System creates an attempt
+6. Student answers multiple-choice questions
+7. Student submits the exam or system auto-submits when time ends
+8. System grades the attempt automatically
+9. Student views result
+
+7.4. Admin monitors platform
+1. Admin logs in
+2. Admin opens dashboard
+3. Admin reviews users, exams, sessions, attempts, and statistics
+4. Admin manages system data if needed
+
+
+8. FUNCTIONAL REQUIREMENTS BY ROLE
+
+8.1. Student
+- register
+- login/logout
+- view exam sessions
+- start exam
+- answer questions
+- submit exam
+- view results
+- view attempt history
+- update profile
+
+8.2. Instructor
+- login/logout
+- CRUD subjects/topics
+- CRUD questions
+- CRUD exams
+- CRUD exam sessions
+- view attempts
+- view results
+- view statistics
+
+8.3. Admin
+- login/logout
+- CRUD users
+- assign roles
+- lock/unlock accounts
+- manage subjects/topics
+- view all exams and sessions
+- access dashboard
+
+
+9. NON-FUNCTIONAL REQUIREMENTS
+
+- responsive UI
+- secure JWT authentication
+- BCrypt password hashing
+- backend and frontend validation
+- RESTful API structure
+- clean layered architecture
+- reliable timer and auto-submit logic
+- accurate automatic grading
+
+
+10. DATABASE DESIGN OVERVIEW
+
+Use SQL Server.
+
+Recommended tables:
+
+10.1. roles
+- id
+- name
+
+10.2. users
+- id
+- full_name
+- email
+- password_hash
+- role_id
+- status
+- created_at
+- updated_at
+
+10.3. subjects
+- id
+- name
+- description
+- created_by
+- created_at
+
+10.4. topics
+- id
+- subject_id
+- name
+- description
+
+10.5. questions
+- id
+- subject_id
+- topic_id
+- content
+- difficulty
+- status
+- explanation
+- created_by
+- created_at
+- updated_at
+
+10.6. question_options
+- id
+- question_id
+- option_label
+- option_content
+- is_correct
+
+10.7. exams
+- id
+- title
+- description
+- subject_id
+- duration_minutes
+- total_score
+- status
+- show_answers_after_submit
+- created_by
+- created_at
+- updated_at
+
+10.8. exam_questions
+- id
+- exam_id
+- question_id
+- display_order
+
+10.9. exam_sessions
+- id
+- exam_id
+- title
+- open_time
+- close_time
+- duration_minutes
+- max_attempts
+- status
+- created_by
+- created_at
+- updated_at
+
+10.10. attempts
+- id
+- exam_session_id
+- student_id
+- started_at
+- submitted_at
+- completion_seconds
+- total_questions
+- correct_answers
+- wrong_answers
+- unanswered_answers
+- score
+- status
+
+Attempt statuses:
+- IN_PROGRESS
+- SUBMITTED
+- AUTO_SUBMITTED
+
+10.11. attempt_answers
+- id
+- attempt_id
+- question_id
+- selected_option_id
+- is_correct
+
+
+11. RELATIONSHIP SUMMARY
+
+- one role has many users
+- one subject has many topics
+- one subject has many questions
+- one topic has many questions
+- one question has many options
+- one exam has many exam_questions
+- one exam has many exam_sessions
+- one exam session has many attempts
+- one student has many attempts
+- one attempt has many attempt_answers
+
+
+12. MINIMUM API MODULES
+
+12.1. Auth APIs
+- POST /api/auth/register
+- POST /api/auth/login
+- POST /api/auth/change-password
+- GET /api/auth/me
+
+12.2. User APIs
+- GET /api/users
+- GET /api/users/{id}
+- POST /api/users
+- PUT /api/users/{id}
+- PATCH /api/users/{id}/status
+- PATCH /api/users/{id}/role
+
+12.3. Subject APIs
+- GET /api/subjects
+- POST /api/subjects
+- PUT /api/subjects/{id}
+- DELETE /api/subjects/{id}
+
+12.4. Topic APIs
+- GET /api/topics
+- POST /api/topics
+- PUT /api/topics/{id}
+- DELETE /api/topics/{id}
+
+12.5. Question APIs
+- GET /api/questions
+- GET /api/questions/{id}
+- POST /api/questions
+- PUT /api/questions/{id}
+- DELETE /api/questions/{id}
+- PATCH /api/questions/{id}/status
+
+12.6. Exam APIs
+- GET /api/exams
+- GET /api/exams/{id}
+- POST /api/exams
+- PUT /api/exams/{id}
+- DELETE /api/exams/{id}
+- POST /api/exams/{id}/questions
+- DELETE /api/exams/{id}/questions/{questionId}
+
+12.7. Exam Session APIs
+- GET /api/exam-sessions
+- GET /api/exam-sessions/{id}
+- POST /api/exam-sessions
+- PUT /api/exam-sessions/{id}
+- DELETE /api/exam-sessions/{id}
+- PATCH /api/exam-sessions/{id}/status
+
+12.8. Attempt APIs
+- POST /api/exam-sessions/{id}/start
+- POST /api/attempts/{id}/answers
+- POST /api/attempts/{id}/submit
+- GET /api/attempts/{id}
+- GET /api/my-attempts
+
+12.9. Dashboard APIs
+- GET /api/dashboard/overview
+- GET /api/dashboard/exam-stats
+- GET /api/dashboard/question-stats
+
+
+13. FRONTEND PAGE SUGGESTION
+
+Public pages:
+- /login
+- /register
+
+Student pages:
+- /dashboard
+- /exam-sessions
+- /exam-sessions/:id
+- /attempts/:id
+- /results/:id
+- /my-attempts
+- /profile
+
+Instructor/Admin pages:
+- /admin
+- /admin/users
+- /admin/subjects
+- /admin/topics
+- /admin/questions
+- /admin/exams
+- /admin/exam-sessions
+- /admin/results
+- /admin/statistics
+
+
+14. IMPORTANT FRONTEND BEHAVIOR
+
+14.1. Exam session detail page
+Should show:
+- exam/session title
+- description
+- open time / close time
+- duration
+- number of questions
+- attempt rule
+- button to start if session is active
+
+14.2. Attempt page
+Should show:
+- timer countdown
+- question content
+- 4 answer options
+- current question number
+- previous/next navigation
+- question palette for quick navigation
+- submit button
+
+14.3. Result page
+Should show:
+- final score
+- correct count
+- wrong count
+- unanswered count
+- time spent
+- answer review
+
+
+15. BACKEND IMPLEMENTATION SUGGESTION
+
+Recommended stack:
+- Java 17+
+- Spring Boot
+- Spring Security
+- Spring Data JPA
+- SQL Server JDBC Driver
+- Lombok
+- Validation
+
+Suggested package structure:
+- controller
+- service
+- repository
+- entity
+- dto
+- mapper
+- security
+- config
+- exception
+
+Important backend logic:
+- JWT authentication filter
+- role-based access control
+- attempt creation and submission flow
+- automatic grading service
+- timer validation
+
+
+16. FRONTEND IMPLEMENTATION SUGGESTION
+
+Recommended stack:
+- React
+- React Router
+- Axios
+- Context API or Redux Toolkit
+
+Important frontend modules:
+- auth module
+- protected routes
+- exam session list/detail
+- attempt module with timer
+- result module
+- admin management module
+
+
+17. SCORING LOGIC
+
+Recommended first-version scoring:
+- each correct answer = 1 point
+- wrong answer = 0 point
+- unanswered = 0 point
+
+Display options:
+- raw score = correct answer count
+- normalized score = correct_answers / total_questions * 10
+
+
+18. VALIDATION RULES
+
+18.1. User validation
+- email must be unique
+- password must meet minimum length
+- role must be valid
+
+18.2. Question validation
+- question must have content
+- exactly 4 options
+- exactly 1 correct option
+
+18.3. Exam validation
+- exam must contain at least 1 question before publish
+- duration must be positive
+
+18.4. Exam session validation
+- close_time must be after open_time
+- duration must be positive
+- max_attempts must be valid
+
+18.5. Attempt validation
+- student can only start if session is active
+- student cannot exceed max_attempts
+- attempt cannot be submitted twice
+
+
+19. RECOMMENDED MVP
+
+The MVP should include:
+- register/login
+- role-based auth
+- user management
+- subject/topic management
+- question bank CRUD
+- exam CRUD
+- exam session CRUD
+- student exam participation
+- automatic grading
+- result review
+- basic statistics
+
+
+20. FUTURE EXTENSION
+
+These are planned for later, not now:
+- challenge mode
+- public leaderboard
+- ranking by score/time
+- challenge history
+
+
+21. WHAT A NEW CHAT SHOULD DO NEXT
+
+When this file is provided in a new chat, the next chat should:
+1. scaffold the full project
+2. use React + Spring Boot + SQL Server
+3. implement exam core first
+4. keep the first version minimal but complete
+5. exclude challenge/leaderboard unless explicitly requested later
+
+
+22. FINAL IMPLEMENTATION DIRECTION
+
+Build ExamPortal as a clean, complete online examination system where:
+- instructors manage question banks and exams
+- exam sessions are scheduled
+- students take multiple-choice exams directly in the website
+- the system grades attempts automatically
+- students and instructors can review results
+
+Challenge mode is a later extension and should not be part of the first implementation scope.

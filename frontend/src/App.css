@@ -1,0 +1,258 @@
+.app-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  background:
+    radial-gradient(circle at top left, rgba(205, 232, 255, 0.9), transparent 30%),
+    linear-gradient(135deg, #f5f7fb, #eef3f9 60%, #e7eef8);
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: 2rem 1.25rem;
+  background: rgba(14, 33, 56, 0.95);
+  color: #f5f8ff;
+}
+
+.content {
+  padding: 2rem;
+}
+
+.page,
+.stack {
+  display: grid;
+  gap: 1rem;
+}
+
+.page-header {
+  margin-bottom: 1rem;
+}
+
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.75rem;
+  color: #4878b7;
+  margin: 0;
+}
+
+.muted {
+  color: #5d6b7d;
+}
+
+.nav-list {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.nav-item {
+  padding: 0.8rem 0.95rem;
+  border-radius: 14px;
+  color: inherit;
+  text-decoration: none;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.nav-item.active {
+  background: #f4b942;
+  color: #13253b;
+  font-weight: 700;
+}
+
+.panel,
+.auth-panel {
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(60, 83, 112, 0.12);
+  border-radius: 24px;
+  padding: 1.25rem;
+  box-shadow: 0 18px 45px rgba(25, 49, 77, 0.08);
+}
+
+.profile-card,
+.auth-callout {
+  display: grid;
+  gap: 0.5rem;
+  padding: 1rem;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.auth-layout {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  padding: 2rem;
+  gap: 1.5rem;
+  background:
+    linear-gradient(125deg, rgba(11, 31, 53, 0.97), rgba(31, 80, 129, 0.92)),
+    radial-gradient(circle at top, rgba(244, 185, 66, 0.35), transparent 24%);
+}
+
+.auth-hero {
+  color: #f5f8ff;
+  align-content: space-between;
+}
+
+.stats-grid,
+.card-grid,
+.two-column,
+.attempt-layout {
+  display: grid;
+  gap: 1rem;
+}
+
+.stats-grid {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.card-grid {
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.two-column,
+.attempt-layout {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.stat-card strong {
+  font-size: 1.35rem;
+}
+
+.row-between {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+}
+
+.primary-button,
+.ghost-button,
+.primary-link,
+.option-button,
+.palette-item {
+  border: 0;
+  border-radius: 14px;
+  padding: 0.85rem 1rem;
+  font: inherit;
+}
+
+.primary-button,
+.primary-link {
+  background: #173c64;
+  color: #fff;
+  text-decoration: none;
+  text-align: center;
+}
+
+.ghost-button,
+.option-button,
+.palette-item {
+  background: #edf3fa;
+  color: #173c64;
+}
+
+.option-button {
+  text-align: left;
+}
+
+.option-button.active,
+.palette-item.active {
+  background: #f4b942;
+  color: #13253b;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  padding: 0.28rem 0.7rem;
+  border-radius: 999px;
+  background: #e9eef5;
+  color: #173c64;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.pill.success {
+  background: #dbf4e2;
+  color: #166b34;
+}
+
+.pill.danger {
+  background: #f7dddd;
+  color: #8f1d1d;
+}
+
+.palette {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.timer {
+  font-weight: 700;
+  color: #a23d1a;
+}
+
+label {
+  display: grid;
+  gap: 0.4rem;
+  color: #173c64;
+  font-weight: 600;
+}
+
+input,
+select {
+  width: 100%;
+  padding: 0.8rem 0.9rem;
+  border-radius: 14px;
+  border: 1px solid #c9d5e5;
+  background: #fff;
+  font: inherit;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 0.85rem 0.6rem;
+  border-bottom: 1px solid #dde6f1;
+}
+
+.json-preview {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.error-text {
+  color: #ad1f1f;
+}
+
+.success-text {
+  color: #166b34;
+}
+
+@media (max-width: 960px) {
+  .app-shell,
+  .auth-layout,
+  .two-column,
+  .attempt-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    padding-bottom: 1rem;
+  }
+
+  .content {
+    padding: 1rem;
+  }
+}

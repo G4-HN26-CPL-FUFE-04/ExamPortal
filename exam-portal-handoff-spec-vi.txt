@@ -1,0 +1,716 @@
+TAI LIEU HANDOFF DU AN
+ExamPortal
+
+1. THONG TIN DU AN
+
+Ten du an: ExamPortal
+Ten repo/folder: exam-portal
+Frontend: React
+Backend: Spring Boot
+Co so du lieu: SQL Server
+
+Dinh huong hien tai:
+Tap trung lam that tot he thong thi online truoc.
+Phan challenge va leaderboard de giai doan sau, khong dua vao pham vi chinh cua version hien tai.
+
+
+2. TONG QUAN DU AN
+
+ExamPortal la mot ung dung web full-stack cho he thong thi trac nghiem truc tuyen.
+
+Day khong chi la mot website quan ly. Nghiep vu chinh dien ra truc tiep trong he thong:
+- giang vien tao cau hoi va de thi
+- hoc sinh dang nhap va lam bai truc tiep tren web
+- he thong tu dong cham diem
+- hoc sinh xem ket qua
+- giang vien va admin theo doi bai lam va thong ke
+
+Trong tam nghiep vu:
+- tao de thi
+- mo lich thi
+- cho hoc sinh lam bai online
+- tu dong cham diem
+- quan ly ket qua
+
+Phan mo rong de sau:
+- challenge cong khai
+- leaderboard / bang xep hang
+
+
+3. PHAM VI CHINH CUA VERSION HIEN TAI
+
+Version hien tai chi tap trung vao phan exam.
+
+Bao gom:
+- xac thuc va phan quyen
+- quan ly nguoi dung
+- quan ly subject/topic
+- quan ly ngan hang cau hoi
+- quan ly de thi
+- quan ly ca thi / lich thi
+- hoc sinh lam bai truc tuyen
+- tu dong cham diem
+- xem ket qua
+- thong ke co ban
+
+Khong bao gom trong version hien tai:
+- challenge mode
+- leaderboard
+- cau hoi tu luan
+- bai thi coding
+- cham diem thu cong
+- webcam proctoring
+- anti-cheat nang cao
+- tinh nang realtime bang WebSocket
+
+
+4. CAC VAI TRO CHINH
+
+4.1. Student
+- dang ky tai khoan
+- dang nhap / dang xuat
+- xem danh sach ca thi co the tham gia
+- bat dau lam bai
+- tra loi cau hoi trac nghiem tren web
+- nop bai
+- nhan diem tu dong
+- xem ket qua chi tiet
+- xem lich su bai lam cua minh
+- cap nhat thong tin ca nhan
+
+4.2. Instructor
+- quan ly ngan hang cau hoi
+- quan ly subject/topic
+- tao va quan ly de thi
+- tao va quan ly ca thi
+- theo doi bai lam cua hoc sinh
+- xem ket qua
+- xem thong ke co ban
+
+4.3. Admin
+- quan ly toan bo nguoi dung
+- gan role
+- khoa/mo tai khoan
+- quan ly subject/topic
+- xem tat ca de thi va ca thi
+- xem dashboard/thong ke toan he thong
+
+
+5. QUY TAC LOAI CAU HOI
+
+Version dau chi ho tro:
+- cau hoi trac nghiem
+- 1 dap an dung
+- moi cau hoi co dung 4 lua chon: A, B, C, D
+
+Khong lam:
+- cau hoi tu luan
+- cau hoi nhieu dap an dung
+- bai thi coding
+
+
+6. CAC CHUC NANG CHINH
+
+6.1. Xac thuc va phan quyen
+- dang ky
+- dang nhap
+- dang xuat
+- xac thuc bang JWT
+- phan quyen theo role
+- bao ve route frontend
+- doi mat khau
+
+6.2. Quan ly nguoi dung
+- admin xem danh sach user
+- tim kiem user
+- loc theo role/trang thai
+- tao user
+- sua user
+- gan role
+- khoa/mo user
+
+6.3. Quan ly ho so ca nhan
+- user xem thong tin cua minh
+- user cap nhat thong tin cua minh
+- user doi mat khau
+
+6.4. Quan ly subject va topic
+- tao subject
+- sua subject
+- xoa subject
+- tao topic
+- sua topic
+- xoa topic
+
+6.5. Quan ly ngan hang cau hoi
+- tao cau hoi
+- sua cau hoi
+- xoa cau hoi
+- bat/tat cau hoi
+- gan subject/topic/do kho
+- tim kiem/loc cau hoi
+- xem truoc cau hoi
+
+Thong tin cau hoi:
+- noi dung cau hoi
+- dap an A
+- dap an B
+- dap an C
+- dap an D
+- dap an dung
+- giai thich (co the tuy chon)
+- do kho
+- trang thai
+- nguoi tao
+
+6.6. Quan ly de thi
+- tao de thi
+- sua de thi
+- xoa de thi
+- them cau hoi vao de
+- xoa cau hoi khoi de
+- sap xep thu tu cau hoi
+- cau hinh thoi gian lam bai
+- cau hinh tong diem
+- cau hinh trang thai
+- cau hinh co cho xem dap an sau khi nop hay khong
+
+Trang thai de thi:
+- draft
+- published
+- archived
+
+6.7. Quan ly ca thi / lich thi
+
+Exam session la mot lan mo thi cu the de hoc sinh vao lam.
+
+Chuc nang:
+- tao ca thi
+- sua ca thi
+- xoa ca thi
+- gan de thi vao ca thi
+- set thoi gian mo
+- set thoi gian dong
+- set thoi luong lam bai
+- set so lan duoc thi
+- bat/tat ca thi
+
+Trang thai ca thi:
+- upcoming
+- active
+- closed
+- cancelled
+
+6.8. Hoc sinh lam bai online
+- hoc sinh xem danh sach ca thi
+- hoc sinh mo chi tiet ca thi
+- hoc sinh bat dau lam bai
+- he thong tao attempt
+- hoc sinh tra loi cau hoi tren web
+- hoc sinh chuyen qua lai giua cac cau
+- hoc sinh nhin thay dong ho dem nguoc
+- hoc sinh nop bai
+- he thong tu dong nop khi het gio
+
+6.9. Tu dong cham diem
+- so sanh dap an da chon voi dap an dung
+- dem so cau dung
+- dem so cau sai
+- dem so cau bo trong
+- tinh diem cuoi cung
+- luu ket qua bai lam
+
+6.10. Xem ket qua
+- hoc sinh xem tong quan ket qua
+- hoc sinh xem chi tiet tung cau
+- hien dap an da chon
+- hien dap an dung
+- hien dung/sai
+- hien diem
+- hien tong thoi gian lam bai
+
+6.11. Instructor/Admin theo doi bai lam
+- xem danh sach bai lam theo ca thi
+- xem chi tiet ket qua tung hoc sinh
+- tim kiem bai lam
+- loc theo de thi/ca thi/hoc sinh
+- xem bao cao co ban
+
+6.12. Dashboard va thong ke
+- tong so user
+- tong so student
+- tong so instructor
+- tong so cau hoi
+- tong so de thi
+- tong so ca thi
+- tong so luot lam bai
+- diem trung binh theo ca thi
+- diem cao nhat/thap nhat
+- so luot tham gia
+
+
+7. LUONG NGHIEP VU CHINH
+
+7.1. Instructor tao de thi
+1. Instructor dang nhap
+2. Instructor tao subject/topic neu can
+3. Instructor tao cau hoi trong ngan hang cau hoi
+4. Instructor tao de thi
+5. Instructor them cau hoi vao de
+6. Instructor cau hinh thoi gian, diem, trang thai
+7. Instructor publish de thi
+
+7.2. Instructor tao ca thi
+1. Instructor chon mot de thi da co
+2. Instructor tao ca thi
+3. Instructor set:
+   - thoi gian mo
+   - thoi gian dong
+   - thoi luong lam bai
+   - so lan duoc thi
+4. Instructor kich hoat ca thi
+
+7.3. Student lam bai thi
+1. Student dang ky hoac dang nhap
+2. Student xem danh sach ca thi co the tham gia
+3. Student mo trang chi tiet ca thi
+4. Student bam Start Exam
+5. He thong tao attempt
+6. Student lam bai trac nghiem
+7. Student nop bai hoac he thong auto-submit khi het gio
+8. He thong cham diem tu dong
+9. Student xem ket qua
+
+7.4. Admin theo doi he thong
+1. Admin dang nhap
+2. Admin mo dashboard
+3. Admin xem user, de thi, ca thi, bai lam, thong ke
+4. Admin quan ly du lieu he thong neu can
+
+
+8. YEU CAU CHUC NANG THEO ROLE
+
+8.1. Student
+- dang ky
+- dang nhap/dang xuat
+- xem ca thi
+- bat dau thi
+- tra loi cau hoi
+- nop bai
+- xem ket qua
+- xem lich su bai lam
+- cap nhat profile
+
+8.2. Instructor
+- dang nhap/dang xuat
+- CRUD subject/topic
+- CRUD cau hoi
+- CRUD de thi
+- CRUD ca thi
+- xem bai lam
+- xem ket qua
+- xem thong ke
+
+8.3. Admin
+- dang nhap/dang xuat
+- CRUD user
+- gan role
+- khoa/mo tai khoan
+- quan ly subject/topic
+- xem tat ca de thi va ca thi
+- vao dashboard
+
+
+9. YEU CAU PHI CHUC NANG
+
+- giao dien responsive
+- xac thuc JWT an toan
+- ma hoa mat khau bang BCrypt
+- validate ca frontend va backend
+- API theo REST
+- kien truc code ro rang
+- timer va auto-submit on dinh
+- cham diem tu dong chinh xac
+
+
+10. THIET KE CO SO DU LIEU SO BO
+
+Su dung SQL Server.
+
+Bang de xuat:
+
+10.1. roles
+- id
+- name
+
+10.2. users
+- id
+- full_name
+- email
+- password_hash
+- role_id
+- status
+- created_at
+- updated_at
+
+10.3. subjects
+- id
+- name
+- description
+- created_by
+- created_at
+
+10.4. topics
+- id
+- subject_id
+- name
+- description
+
+10.5. questions
+- id
+- subject_id
+- topic_id
+- content
+- difficulty
+- status
+- explanation
+- created_by
+- created_at
+- updated_at
+
+10.6. question_options
+- id
+- question_id
+- option_label
+- option_content
+- is_correct
+
+10.7. exams
+- id
+- title
+- description
+- subject_id
+- duration_minutes
+- total_score
+- status
+- show_answers_after_submit
+- created_by
+- created_at
+- updated_at
+
+10.8. exam_questions
+- id
+- exam_id
+- question_id
+- display_order
+
+10.9. exam_sessions
+- id
+- exam_id
+- title
+- open_time
+- close_time
+- duration_minutes
+- max_attempts
+- status
+- created_by
+- created_at
+- updated_at
+
+10.10. attempts
+- id
+- exam_session_id
+- student_id
+- started_at
+- submitted_at
+- completion_seconds
+- total_questions
+- correct_answers
+- wrong_answers
+- unanswered_answers
+- score
+- status
+
+Trang thai attempt:
+- IN_PROGRESS
+- SUBMITTED
+- AUTO_SUBMITTED
+
+10.11. attempt_answers
+- id
+- attempt_id
+- question_id
+- selected_option_id
+- is_correct
+
+
+11. TOM TAT QUAN HE
+
+- mot role co nhieu user
+- mot subject co nhieu topic
+- mot subject co nhieu question
+- mot topic co nhieu question
+- mot question co nhieu option
+- mot exam co nhieu exam_question
+- mot exam co nhieu exam_session
+- mot exam_session co nhieu attempt
+- mot student co nhieu attempt
+- mot attempt co nhieu attempt_answer
+
+
+12. CAC NHOM API TOI THIEU
+
+12.1. Auth APIs
+- POST /api/auth/register
+- POST /api/auth/login
+- POST /api/auth/change-password
+- GET /api/auth/me
+
+12.2. User APIs
+- GET /api/users
+- GET /api/users/{id}
+- POST /api/users
+- PUT /api/users/{id}
+- PATCH /api/users/{id}/status
+- PATCH /api/users/{id}/role
+
+12.3. Subject APIs
+- GET /api/subjects
+- POST /api/subjects
+- PUT /api/subjects/{id}
+- DELETE /api/subjects/{id}
+
+12.4. Topic APIs
+- GET /api/topics
+- POST /api/topics
+- PUT /api/topics/{id}
+- DELETE /api/topics/{id}
+
+12.5. Question APIs
+- GET /api/questions
+- GET /api/questions/{id}
+- POST /api/questions
+- PUT /api/questions/{id}
+- DELETE /api/questions/{id}
+- PATCH /api/questions/{id}/status
+
+12.6. Exam APIs
+- GET /api/exams
+- GET /api/exams/{id}
+- POST /api/exams
+- PUT /api/exams/{id}
+- DELETE /api/exams/{id}
+- POST /api/exams/{id}/questions
+- DELETE /api/exams/{id}/questions/{questionId}
+
+12.7. Exam Session APIs
+- GET /api/exam-sessions
+- GET /api/exam-sessions/{id}
+- POST /api/exam-sessions
+- PUT /api/exam-sessions/{id}
+- DELETE /api/exam-sessions/{id}
+- PATCH /api/exam-sessions/{id}/status
+
+12.8. Attempt APIs
+- POST /api/exam-sessions/{id}/start
+- POST /api/attempts/{id}/answers
+- POST /api/attempts/{id}/submit
+- GET /api/attempts/{id}
+- GET /api/my-attempts
+
+12.9. Dashboard APIs
+- GET /api/dashboard/overview
+- GET /api/dashboard/exam-stats
+- GET /api/dashboard/question-stats
+
+
+13. GOI Y CAC TRANG FRONTEND
+
+Trang public:
+- /login
+- /register
+
+Trang student:
+- /dashboard
+- /exam-sessions
+- /exam-sessions/:id
+- /attempts/:id
+- /results/:id
+- /my-attempts
+- /profile
+
+Trang instructor/admin:
+- /admin
+- /admin/users
+- /admin/subjects
+- /admin/topics
+- /admin/questions
+- /admin/exams
+- /admin/exam-sessions
+- /admin/results
+- /admin/statistics
+
+
+14. HANH VI FRONTEND QUAN TRONG
+
+14.1. Trang chi tiet ca thi
+Can hien:
+- ten de/ca thi
+- mo ta
+- thoi gian mo / dong
+- thoi luong
+- so cau hoi
+- quy dinh so lan thi
+- nut Start neu ca thi dang active
+
+14.2. Trang lam bai
+Can hien:
+- dong ho dem nguoc
+- noi dung cau hoi
+- 4 lua chon dap an
+- so thu tu cau hien tai
+- nut previous/next
+- bang danh sach cau de nhay nhanh
+- nut submit
+
+14.3. Trang ket qua
+Can hien:
+- diem cuoi
+- so cau dung
+- so cau sai
+- so cau bo trong
+- thoi gian lam bai
+- phan review dap an
+
+
+15. GOI Y TRIEN KHAI BACKEND
+
+Stack de xuat:
+- Java 17+
+- Spring Boot
+- Spring Security
+- Spring Data JPA
+- SQL Server JDBC Driver
+- Lombok
+- Validation
+
+Goi package de xuat:
+- controller
+- service
+- repository
+- entity
+- dto
+- mapper
+- security
+- config
+- exception
+
+Logic backend quan trong:
+- bo loc JWT
+- phan quyen theo role
+- luong tao va nop attempt
+- service tu dong cham diem
+- validate timer
+
+
+16. GOI Y TRIEN KHAI FRONTEND
+
+Stack de xuat:
+- React
+- React Router
+- Axios
+- Context API hoac Redux Toolkit
+
+Module frontend quan trong:
+- auth
+- protected routes
+- exam session list/detail
+- attempt module co timer
+- result module
+- admin management
+
+
+17. LOGIC TINH DIEM
+
+Ban dau nen tinh diem theo cach don gian:
+- moi cau dung = 1 diem
+- cau sai = 0 diem
+- bo trong = 0 diem
+
+Co the hien thi:
+- diem goc = so cau dung
+- diem chuan hoa = correct_answers / total_questions * 10
+
+
+18. QUY TAC VALIDATE
+
+18.1. User
+- email phai duy nhat
+- mat khau dat do dai toi thieu
+- role hop le
+
+18.2. Question
+- phai co noi dung
+- phai co dung 4 dap an
+- phai co dung 1 dap an dung
+
+18.3. Exam
+- de thi phai co it nhat 1 cau hoi truoc khi publish
+- duration phai > 0
+
+18.4. Exam session
+- close_time phai sau open_time
+- duration phai > 0
+- max_attempts hop le
+
+18.5. Attempt
+- student chi duoc start neu session dang active
+- student khong duoc vuot so lan thi cho phep
+- attempt khong duoc submit 2 lan
+
+
+19. MVP DE XUAT
+
+MVP nen bao gom:
+- dang ky/dang nhap
+- phan quyen theo role
+- quan ly user
+- quan ly subject/topic
+- CRUD ngan hang cau hoi
+- CRUD de thi
+- CRUD ca thi
+- student lam bai online
+- tu dong cham diem
+- xem ket qua
+- thong ke co ban
+
+
+20. PHAN MO RONG TUONG LAI
+
+Nhung phan de sau, chua lam luc nay:
+- challenge mode
+- leaderboard cong khai
+- xep hang theo diem/thoi gian
+- lich su challenge
+
+
+21. KHI DUA FILE NAY VAO CHAT MOI THI CAN LAM GI
+
+Khi dua file nay vao chat moi, chat tiep theo can:
+1. scaffold toan bo project
+2. su dung React + Spring Boot + SQL Server
+3. implement exam core truoc
+4. giu version dau toi gian nhung day du
+5. khong lam challenge/leaderboard neu chua duoc yeu cau them
+
+
+22. DINH HUONG TRIEN KHAI CUOI CUNG
+
+Xay dung ExamPortal thanh mot he thong thi online hoan chinh, gon, ro rang, trong do:
+- instructor quan ly ngan hang cau hoi va de thi
+- ca thi duoc mo theo lich
+- student lam bai trac nghiem truc tiep tren website
+- he thong tu dong cham diem
+- student va instructor co the xem ket qua
+
+Challenge mode la phan mo rong ve sau, khong nam trong pham vi implement version dau.
