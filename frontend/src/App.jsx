@@ -106,14 +106,14 @@ function App() {
         />
 
         <Route path="dashboard" element={<RoleHomeRedirect auth={auth} />} />
-        <Route path="profile" element={<Navigate to={getProfileRouteForRole(auth.user.role)} replace />} />
-        <Route path="exam-sessions" element={<Navigate to={getExamSessionsRouteForRole(auth.user.role)} replace />} />
+        <Route path="profile" element={<Navigate to={getProfileRouteForRole(auth?.user?.role)} replace />} />
+        <Route path="exam-sessions" element={<Navigate to={getExamSessionsRouteForRole(auth?.user?.role)} replace />} />
         <Route path="exam-sessions/:id" element={<LegacyStudentRouteRedirect prefix="exam-sessions" />} />
         <Route path="attempts/:id" element={<LegacyStudentRouteRedirect prefix="attempts" />} />
         <Route path="results/:id" element={<LegacyStudentRouteRedirect prefix="results" />} />
         <Route path="my-attempts" element={<Navigate to="/student/my-attempts" replace />} />
-        <Route path="draft" element={<Navigate to={getDraftsRouteForRole(auth.user.role)} replace />} />
-        <Route path="questions" element={<Navigate to={getSubjectsRouteForRole(auth.user.role)} replace />} />
+        <Route path="draft" element={<Navigate to={getDraftsRouteForRole(auth?.user?.role)} replace />} />
+        <Route path="questions" element={<Navigate to={getSubjectsRouteForRole(auth?.user?.role)} replace />} />
         <Route path="questions/:subjectSlug" element={<LegacyQuestionsRedirect auth={auth} />} />
       </Route>
     </Routes>
