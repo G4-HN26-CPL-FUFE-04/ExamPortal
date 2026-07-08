@@ -488,6 +488,98 @@ td {
   color: inherit;
 }
 
+.subject-card {
+  cursor: pointer;
+}
+
+.subject-card:hover {
+  border-color: rgba(157, 184, 232, 0.85);
+}
+
+.subject-create-anchor {
+  position: relative;
+}
+
+.subject-create-popover {
+  position: absolute;
+  top: calc(100% + 0.75rem);
+  right: 0;
+  width: min(24rem, calc(100vw - 2rem));
+  z-index: 30;
+}
+
+.subject-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.subject-title-row h3 {
+  margin: 0;
+}
+
+.subject-inline-edit {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.confirm-popover {
+  position: absolute;
+  top: calc(100% + 0.75rem);
+  right: 0;
+  width: min(22rem, calc(100vw - 2rem));
+  z-index: 35;
+}
+
+.confirm-popover p {
+  margin: 0;
+}
+
+.subject-page-header {
+  margin-bottom: 0;
+}
+
+.subject-bank-title {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.import-textarea-wrap {
+  position: relative;
+}
+
+.import-textarea {
+  min-height: 12rem;
+  padding-top: 2.8rem;
+}
+
+.import-clear-button {
+  position: absolute;
+  top: 0.7rem;
+  right: 0.7rem;
+  border: 0;
+  border-radius: 10px;
+  padding: 0.4rem 0.7rem;
+  background: var(--surface-soft);
+  color: var(--text-main);
+  font: inherit;
+}
+
+.import-error-card {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.9rem 1rem;
+  border-radius: 16px;
+  background: var(--surface-soft-2);
+}
+
+.import-error-card p {
+  margin: 0;
+}
+
 .faux-link {
   display: inline-flex;
   width: fit-content;

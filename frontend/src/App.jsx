@@ -7,10 +7,10 @@ import AuthPage from './pages/AuthPage'
 import AdminDashboardPage from './pages/admin/DashboardPage'
 import AdminDraftsPage from './pages/admin/DraftsPage'
 import AdminExamSessionsPage from './pages/admin/ExamSessionsPage'
-import AdminQuestionsPage from './pages/admin/QuestionsPage'
 import AdminResultsPage from './pages/admin/ResultsPage'
 import AdminStatisticsPage from './pages/admin/StatisticsPage'
 import AdminSubjectQuestionsPage from './pages/admin/SubjectQuestionsPage'
+import AdminSubjectBanksPage from './pages/admin/SubjectBanksPage'
 import AdminSubjectsPage from './pages/admin/SubjectsPage'
 import AdminUsersPage from './pages/admin/UsersPage'
 import ProfilePage from './pages/shared/ProfilePage'
@@ -63,8 +63,9 @@ function App() {
 
         <Route path="instructor" element={<RoleRoute auth={auth} roles={['INSTRUCTOR']}><AdminDraftsPage /></RoleRoute>} />
         <Route path="instructor/drafts" element={<RoleRoute auth={auth} roles={['INSTRUCTOR']}><AdminDraftsPage /></RoleRoute>} />
-        <Route path="instructor/questions" element={<RoleRoute auth={auth} roles={['INSTRUCTOR']}><AdminQuestionsPage /></RoleRoute>} />
-        <Route path="instructor/questions/:subjectSlug" element={<RoleRoute auth={auth} roles={['INSTRUCTOR']}><AdminSubjectQuestionsPage /></RoleRoute>} />
+        <Route path="instructor/subjects" element={<RoleRoute auth={auth} roles={['INSTRUCTOR']}><AdminSubjectsPage /></RoleRoute>} />
+        <Route path="instructor/subjects/:subjectSlug" element={<RoleRoute auth={auth} roles={['INSTRUCTOR']}><AdminSubjectBanksPage /></RoleRoute>} />
+        <Route path="instructor/subjects/:subjectSlug/:bankSlug" element={<RoleRoute auth={auth} roles={['INSTRUCTOR']}><AdminSubjectQuestionsPage /></RoleRoute>} />
         <Route path="instructor/exam-sessions" element={<RoleRoute auth={auth} roles={['INSTRUCTOR']}><AdminExamSessionsPage /></RoleRoute>} />
         <Route path="instructor/results" element={<RoleRoute auth={auth} roles={['INSTRUCTOR']}><AdminResultsPage /></RoleRoute>} />
         <Route path="instructor/profile" element={<RoleRoute auth={auth} roles={['INSTRUCTOR']}><ProfilePage auth={auth} setAuth={setAuth} /></RoleRoute>} />
@@ -80,11 +81,11 @@ function App() {
           element={<RoleRoute auth={auth} roles={['ADMIN']}><AdminSubjectsPage /></RoleRoute>}
         />
         <Route
-          path="admin/questions"
-          element={<RoleRoute auth={auth} roles={['ADMIN']}><AdminQuestionsPage /></RoleRoute>}
+          path="admin/subjects/:subjectSlug"
+          element={<RoleRoute auth={auth} roles={['ADMIN']}><AdminSubjectBanksPage /></RoleRoute>}
         />
         <Route
-          path="admin/questions/:subjectSlug"
+          path="admin/subjects/:subjectSlug/:bankSlug"
           element={<RoleRoute auth={auth} roles={['ADMIN']}><AdminSubjectQuestionsPage /></RoleRoute>}
         />
         <Route
@@ -112,7 +113,7 @@ function App() {
         <Route path="results/:id" element={<LegacyStudentRouteRedirect prefix="results" />} />
         <Route path="my-attempts" element={<Navigate to="/student/my-attempts" replace />} />
         <Route path="draft" element={<Navigate to={getDraftsRouteForRole(auth.user.role)} replace />} />
-        <Route path="questions" element={<Navigate to={getQuestionsRouteForRole(auth.user.role)} replace />} />
+        <Route path="questions" element={<Navigate to={getSubjectsRouteForRole(auth.user.role)} replace />} />
         <Route path="questions/:subjectSlug" element={<LegacyQuestionsRedirect auth={auth} />} />
       </Route>
     </Routes>
@@ -144,7 +145,7 @@ function LegacyStudentRouteRedirect({ prefix }) {
 
 function LegacyQuestionsRedirect({ auth }) {
   const slug = window.location.pathname.split('/').pop()
-  return <Navigate to={`${getQuestionsRouteForRole(auth.user.role)}/${slug}`} replace />
+  return <Navigate to={`${getSubjectsRouteForRole(auth.user.role)}/${slug}`} replace />
 }
 
 function getHomeRouteForRole(role) {
@@ -171,9 +172,9 @@ function getDraftsRouteForRole(role) {
   return '/student'
 }
 
-function getQuestionsRouteForRole(role) {
-  if (role === 'ADMIN') return '/admin/questions'
-  if (role === 'INSTRUCTOR') return '/instructor/questions'
+function getSubjectsRouteForRole(role) {
+  if (role === 'ADMIN') return '/admin/subjects'
+  if (role === 'INSTRUCTOR') return '/instructor/subjects'
   return '/student'
 }
 

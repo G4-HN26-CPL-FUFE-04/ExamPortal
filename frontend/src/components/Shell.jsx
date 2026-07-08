@@ -20,12 +20,8 @@ function Shell({ auth, setAuth }) {
     const examItems = [
       { to: `${basePath}/exam-sessions`, label: 'Exam Sessions' },
       { to: `${basePath}/drafts`, label: 'Drafts' },
-      { to: `${basePath}/questions`, label: 'Questions' },
+      { to: `${basePath}/subjects`, label: 'Subjects' },
     ]
-
-    if (role === 'ADMIN') {
-      examItems.push({ to: '/admin/subjects', label: 'Subjects' })
-    }
 
     const reportItems = [{ to: `${basePath}/results`, label: 'Results' }]
     if (role === 'ADMIN') {

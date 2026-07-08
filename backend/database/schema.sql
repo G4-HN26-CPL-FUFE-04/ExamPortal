@@ -15,6 +15,7 @@ IF OBJECT_ID(N'exam_sessions', N'U') IS NOT NULL DROP TABLE exam_sessions;
 IF OBJECT_ID(N'exam_questions', N'U') IS NOT NULL DROP TABLE exam_questions;
 IF OBJECT_ID(N'question_options', N'U') IS NOT NULL DROP TABLE question_options;
 IF OBJECT_ID(N'questions', N'U') IS NOT NULL DROP TABLE questions;
+IF OBJECT_ID(N'question_banks', N'U') IS NOT NULL DROP TABLE question_banks;
 IF OBJECT_ID(N'exams', N'U') IS NOT NULL DROP TABLE exams;
 IF OBJECT_ID(N'subjects', N'U') IS NOT NULL DROP TABLE subjects;
 IF OBJECT_ID(N'users', N'U') IS NOT NULL DROP TABLE users;
@@ -41,20 +42,30 @@ CREATE TABLE users (
 CREATE TABLE subjects (
     id BIGINT IDENTITY(1,1) PRIMARY KEY,
     name NVARCHAR(255) NOT NULL,
-    description NVARCHAR(1000) NULL,
     created_by BIGINT NULL,
     created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
     CONSTRAINT fk_subjects_created_by FOREIGN KEY (created_by) REFERENCES users(id)
 );
 
-CREATE TABLE questions (
+CREATE TABLE question_banks (
     id BIGINT IDENTITY(1,1) PRIMARY KEY,
     subject_id BIGINT NOT NULL,
+    name NVARCHAR(255) NOT NULL,
+    description NVARCHAR(1000) NULL,
+    created_by BIGINT NULL,
+    created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    CONSTRAINT fk_question_banks_subject FOREIGN KEY (subject_id) REFERENCES subjects(id),
+    CONSTRAINT fk_question_banks_created_by FOREIGN KEY (created_by) REFERENCES users(id)
+);
+
+CREATE TABLE questions (
+    id BIGINT IDENTITY(1,1) PRIMARY KEY,
+    question_bank_id BIGINT NOT NULL,
     content NVARCHAR(MAX) NOT NULL,
     created_by BIGINT NULL,
     created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
     updated_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
-    CONSTRAINT fk_questions_subject FOREIGN KEY (subject_id) REFERENCES subjects(id),
+    CONSTRAINT fk_questions_question_bank FOREIGN KEY (question_bank_id) REFERENCES question_banks(id),
     CONSTRAINT fk_questions_created_by FOREIGN KEY (created_by) REFERENCES users(id)
 );
 

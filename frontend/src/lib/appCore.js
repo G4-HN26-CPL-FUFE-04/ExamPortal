@@ -32,10 +32,18 @@ export function normalizeCrudPayload(form) {
   )
 }
 
-export function toSubjectSlug(name) {
+export function toSlug(name) {
   return String(name || '')
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
+}
+
+export function toSubjectSlug(name) {
+  return toSlug(name)
+}
+
+export function toQuestionBankSlug(name) {
+  return toSlug(name)
 }

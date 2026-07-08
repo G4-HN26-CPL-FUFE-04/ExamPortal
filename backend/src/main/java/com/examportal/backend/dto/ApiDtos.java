@@ -23,6 +23,8 @@ public final class ApiDtos {
     public record QuestionSummaryDto(
         Long id,
         String content,
+        Long questionBankId,
+        String questionBankName,
         Long subjectId,
         String subjectName,
         String correctOptionLabel,
@@ -30,12 +32,20 @@ public final class ApiDtos {
     ) {
     }
 
-    public record QuestionDetailDto(Long id, String content, Long subjectId, String subjectName, List<OptionDto> options) {
+    public record QuestionDetailDto(
+        Long id,
+        String content,
+        Long questionBankId,
+        String questionBankName,
+        Long subjectId,
+        String subjectName,
+        List<OptionDto> options
+    ) {
     }
 
     public record QuestionPayload(
         @NotBlank String content,
-        @NotNull Long subjectId,
+        @NotNull Long questionBankId,
         @NotEmpty @Size(min = 4, max = 4) List<OptionPayload> options
     ) {
     }
@@ -47,7 +57,7 @@ public final class ApiDtos {
     ) {
     }
 
-    public record QuestionImportPayload(@NotNull Long subjectId, @NotBlank String rawText) {
+    public record QuestionImportPayload(@NotNull Long questionBankId, @NotBlank String rawText) {
     }
 
     public record QuestionImportPreviewQuestionDto(
@@ -62,6 +72,8 @@ public final class ApiDtos {
     }
 
     public record QuestionImportPreviewDto(
+        Long questionBankId,
+        String questionBankName,
         Long subjectId,
         String subjectName,
         int validCount,
@@ -93,10 +105,23 @@ public final class ApiDtos {
                               @NotNull RoleName role, UserStatus status) {
     }
 
-    public record SubjectPayload(@NotBlank String name, String description) {
+    public record SubjectPayload(@NotBlank String name) {
     }
 
-    public record SubjectDto(Long id, String name, String description) {
+    public record SubjectDto(Long id, String name, long questionBankCount, long totalQuestionCount) {
+    }
+
+    public record QuestionBankPayload(@NotBlank String name, String description, @NotNull Long subjectId) {
+    }
+
+    public record QuestionBankDto(
+        Long id,
+        String name,
+        String description,
+        Long subjectId,
+        String subjectName,
+        long questionCount
+    ) {
     }
 
     public record ExamPayload(@NotBlank String title, String description, @NotNull Long subjectId,

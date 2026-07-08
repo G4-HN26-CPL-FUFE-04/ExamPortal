@@ -9,6 +9,7 @@ import com.examportal.backend.entity.ExamSession;
 import com.examportal.backend.entity.ExamSessionQuestion;
 import com.examportal.backend.entity.ExamSessionQuestionOption;
 import com.examportal.backend.entity.Question;
+import com.examportal.backend.entity.QuestionBank;
 import com.examportal.backend.entity.QuestionOption;
 import com.examportal.backend.entity.Role;
 import com.examportal.backend.entity.Subject;
@@ -26,6 +27,7 @@ import com.examportal.backend.repository.ExamRepository;
 import com.examportal.backend.repository.ExamSessionRepository;
 import com.examportal.backend.repository.ExamSessionQuestionOptionRepository;
 import com.examportal.backend.repository.ExamSessionQuestionRepository;
+import com.examportal.backend.repository.QuestionBankRepository;
 import com.examportal.backend.repository.QuestionOptionRepository;
 import com.examportal.backend.repository.QuestionRepository;
 import com.examportal.backend.repository.RoleRepository;
@@ -59,6 +61,7 @@ public class PortalService {
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final SubjectRepository subjectRepository;
+    private final QuestionBankRepository questionBankRepository;
     private final QuestionRepository questionRepository;
     private final QuestionOptionRepository questionOptionRepository;
     private final ExamRepository examRepository;
@@ -73,6 +76,7 @@ public class PortalService {
     private final JwtService jwtService;
 
     public PortalService(UserRepository userRepository, RoleRepository roleRepository, SubjectRepository subjectRepository,
+                         QuestionBankRepository questionBankRepository,
                          QuestionRepository questionRepository,
                          QuestionOptionRepository questionOptionRepository, ExamRepository examRepository,
                          ExamQuestionRepository examQuestionRepository, ExamSessionRepository examSessionRepository,
@@ -84,6 +88,7 @@ public class PortalService {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.subjectRepository = subjectRepository;
+        this.questionBankRepository = questionBankRepository;
         this.questionRepository = questionRepository;
         this.questionOptionRepository = questionOptionRepository;
         this.examRepository = examRepository;
@@ -181,31 +186,82 @@ public class PortalService {
 
     public List<ApiDtos.SubjectDto> getSubjects() {
         return subjectRepository.findAll().stream()
-            .map(subject -> new ApiDtos.SubjectDto(subject.getId(), subject.getName(), subject.getDescription()))
+            .map(subject -> new ApiDtos.SubjectDto(
+                subject.getId(),
+                subject.getName(),
+                questionBankRepository.countBySubject_Id(subject.getId()),
+                questionRepository.countByQuestionBank_Subject_Id(subject.getId())
+            ))
             .toList();
     }
 
     public ApiDtos.SubjectDto saveSubject(ApiDtos.SubjectPayload payload, Long id) {
+        validateSubjectName(payload.name(), id);
         Subject subject = id == null ? new Subject() : findSubject(id);
-        subject.setName(payload.name());
-        subject.setDescription(payload.description());
+        subject.setName(payload.name().trim());
         if (subject.getCreatedBy() == null) {
             subject.setCreatedBy(getCurrentUser());
         }
         Subject saved = subjectRepository.save(subject);
-        return new ApiDtos.SubjectDto(saved.getId(), saved.getName(), saved.getDescription());
+        return new ApiDtos.SubjectDto(
+            saved.getId(),
+            saved.getName(),
+            questionBankRepository.countBySubject_Id(saved.getId()),
+            questionRepository.countByQuestionBank_Subject_Id(saved.getId())
+        );
     }
 
     public void deleteSubject(Long id) {
-        subjectRepository.delete(findSubject(id));
+        Subject subject = findSubject(id);
+        List<Exam> exams = examRepository.findBySubject_Id(id);
+        exams.forEach(exam -> deleteExamDependencies(exam.getId()));
+        if (!exams.isEmpty()) {
+            examRepository.deleteBySubject_Id(id);
+            examRepository.flush();
+        }
+        deleteQuestionBanksBySubjectId(id);
+        subjectRepository.delete(subject);
+        subjectRepository.flush();
     }
 
-    public List<ApiDtos.QuestionSummaryDto> getQuestions(String keyword, Long subjectId) {
+    public List<ApiDtos.QuestionBankDto> getQuestionBanks(Long subjectId) {
+        findSubject(subjectId);
+        return questionBankRepository.findBySubject_IdOrderByNameAsc(subjectId).stream()
+            .map(this::toQuestionBankDto)
+            .toList();
+    }
+
+    public ApiDtos.QuestionBankDto saveQuestionBank(ApiDtos.QuestionBankPayload payload, Long id) {
+        Subject subject = findSubject(payload.subjectId());
+        validateQuestionBankName(subject.getId(), payload.name(), id);
+
+        QuestionBank questionBank = id == null ? new QuestionBank() : findQuestionBank(id);
+        questionBank.setSubject(subject);
+        questionBank.setName(payload.name().trim());
+        questionBank.setDescription(normalizeOptionalText(payload.description()));
+        if (questionBank.getCreatedBy() == null) {
+            questionBank.setCreatedBy(getCurrentUser());
+        }
+        return toQuestionBankDto(questionBankRepository.save(questionBank));
+    }
+
+    public void deleteQuestionBank(Long id) {
+        QuestionBank questionBank = findQuestionBank(id);
+        deleteQuestionsByBankId(id);
+        questionBankRepository.deleteById(questionBank.getId());
+        questionBankRepository.flush();
+    }
+
+    public List<ApiDtos.QuestionSummaryDto> getQuestions(String keyword, Long subjectId, Long questionBankId) {
         List<Question> questions;
-        if (subjectId != null && keyword != null && !keyword.isBlank()) {
-            questions = questionRepository.findBySubject_IdAndContentContainingIgnoreCase(subjectId, keyword);
+        if (questionBankId != null && keyword != null && !keyword.isBlank()) {
+            questions = questionRepository.findByQuestionBank_IdAndContentContainingIgnoreCase(questionBankId, keyword);
+        } else if (questionBankId != null) {
+            questions = questionRepository.findByQuestionBank_Id(questionBankId);
+        } else if (subjectId != null && keyword != null && !keyword.isBlank()) {
+            questions = questionRepository.findByQuestionBank_Subject_IdAndContentContainingIgnoreCase(subjectId, keyword);
         } else if (subjectId != null) {
-            questions = questionRepository.findBySubject_Id(subjectId);
+            questions = questionRepository.findByQuestionBank_Subject_Id(subjectId);
         } else if (keyword != null && !keyword.isBlank()) {
             questions = questionRepository.findByContentContainingIgnoreCase(keyword);
         } else {
@@ -222,10 +278,10 @@ public class PortalService {
         validateQuestionPayload(payload);
 
         Question question = id == null ? new Question() : findQuestion(id);
-        Subject subject = findSubject(payload.subjectId());
+        QuestionBank questionBank = findQuestionBank(payload.questionBankId());
 
         question.setContent(payload.content().trim());
-        question.setSubject(subject);
+        question.setQuestionBank(questionBank);
         if (question.getCreatedBy() == null) {
             question.setCreatedBy(getCurrentUser());
         }
@@ -248,11 +304,13 @@ public class PortalService {
     }
 
     public ApiDtos.QuestionImportPreviewDto previewQuestionImport(ApiDtos.QuestionImportPayload payload) {
-        Subject subject = findSubject(payload.subjectId());
+        QuestionBank questionBank = findQuestionBank(payload.questionBankId());
         ImportParseResult parseResult = parseQuestionImport(payload.rawText());
         return new ApiDtos.QuestionImportPreviewDto(
-            subject.getId(),
-            subject.getName(),
+            questionBank.getId(),
+            questionBank.getName(),
+            questionBank.getSubject().getId(),
+            questionBank.getSubject().getName(),
             parseResult.questions().size(),
             parseResult.errors().size(),
             parseResult.questions().stream().map(this::toImportPreviewQuestionDto).toList(),
@@ -261,7 +319,7 @@ public class PortalService {
     }
 
     public ApiDtos.QuestionImportResultDto importQuestions(ApiDtos.QuestionImportPayload payload) {
-        Subject subject = findSubject(payload.subjectId());
+        QuestionBank questionBank = findQuestionBank(payload.questionBankId());
         ImportParseResult parseResult = parseQuestionImport(payload.rawText());
         if (!parseResult.errors().isEmpty()) {
             String errorMessage = parseResult.errors().stream()
@@ -270,7 +328,7 @@ public class PortalService {
             throw new BadRequestException(errorMessage);
         }
 
-        parseResult.questions().forEach(questionData -> saveImportedQuestion(subject, questionData));
+        parseResult.questions().forEach(questionData -> saveImportedQuestion(questionBank, questionData));
         return new ApiDtos.QuestionImportResultDto(parseResult.questions().size());
     }
 
@@ -321,7 +379,7 @@ public class PortalService {
         ensureExamEditable(exam);
         ensureDraftHasCapacity(exam, 1);
         Question question = findQuestion(payload.questionId());
-        if (!exam.getSubject().getId().equals(question.getSubject().getId())) {
+        if (!exam.getSubject().getId().equals(question.getQuestionBank().getSubject().getId())) {
             throw new BadRequestException("Question subject must match exam subject");
         }
         if (examQuestionRepository.existsByExam_IdAndQuestion_Id(examId, payload.questionId())) {
@@ -356,7 +414,7 @@ public class PortalService {
             }
 
             Question question = findQuestion(questionId);
-            if (!exam.getSubject().getId().equals(question.getSubject().getId())) {
+            if (!exam.getSubject().getId().equals(question.getQuestionBank().getSubject().getId())) {
                 throw new BadRequestException("Question subject must match exam subject");
             }
 
@@ -617,6 +675,11 @@ public class PortalService {
             .orElseThrow(() -> new NotFoundException("Subject not found"));
     }
 
+    private QuestionBank findQuestionBank(Long id) {
+        return questionBankRepository.findById(id)
+            .orElseThrow(() -> new NotFoundException("Question bank not found"));
+    }
+
     private Question findQuestion(Long id) {
         return questionRepository.findById(id)
             .orElseThrow(() -> new NotFoundException("Question not found"));
@@ -658,8 +721,50 @@ public class PortalService {
         }
     }
 
+    private void validateSubjectName(String name, Long id) {
+        String normalized = normalizeRequiredText(name, "Subject name is required");
+        boolean exists = id == null
+            ? subjectRepository.existsByNameIgnoreCase(normalized)
+            : subjectRepository.existsByNameIgnoreCaseAndIdNot(normalized, id);
+        if (exists) {
+            throw new BadRequestException("Subject name already exists");
+        }
+    }
+
+    private void validateQuestionBankName(Long subjectId, String name, Long id) {
+        String normalized = normalizeRequiredText(name, "Question bank name is required");
+        boolean exists = id == null
+            ? questionBankRepository.existsBySubject_IdAndNameIgnoreCase(subjectId, normalized)
+            : questionBankRepository.existsBySubject_IdAndNameIgnoreCaseAndIdNot(subjectId, normalized, id);
+        if (exists) {
+            throw new BadRequestException("Question bank name already exists in this subject");
+        }
+    }
+
+    private String normalizeRequiredText(String value, String message) {
+        if (value == null || value.trim().isBlank()) {
+            throw new BadRequestException(message);
+        }
+        return value.trim();
+    }
+
+    private String normalizeOptionalText(String value) {
+        return value == null || value.trim().isBlank() ? null : value.trim();
+    }
+
     private ApiDtos.UserDto toUserDto(User user) {
         return new ApiDtos.UserDto(user.getId(), user.getFullName(), user.getEmail(), user.getRole().getName(), user.getStatus());
+    }
+
+    private ApiDtos.QuestionBankDto toQuestionBankDto(QuestionBank questionBank) {
+        return new ApiDtos.QuestionBankDto(
+            questionBank.getId(),
+            questionBank.getName(),
+            questionBank.getDescription(),
+            questionBank.getSubject().getId(),
+            questionBank.getSubject().getName(),
+            questionRepository.countByQuestionBank_Id(questionBank.getId())
+        );
     }
 
     private ApiDtos.QuestionSummaryDto toQuestionSummaryDto(Question question) {
@@ -671,8 +776,10 @@ public class PortalService {
         return new ApiDtos.QuestionSummaryDto(
             question.getId(),
             question.getContent(),
-            question.getSubject().getId(),
-            question.getSubject().getName(),
+            question.getQuestionBank().getId(),
+            question.getQuestionBank().getName(),
+            question.getQuestionBank().getSubject().getId(),
+            question.getQuestionBank().getSubject().getName(),
             correctOption == null ? null : correctOption.getOptionLabel(),
             correctOption == null ? null : correctOption.getOptionContent()
         );
@@ -686,8 +793,10 @@ public class PortalService {
         return new ApiDtos.QuestionDetailDto(
             question.getId(),
             question.getContent(),
-            question.getSubject().getId(),
-            question.getSubject().getName(),
+            question.getQuestionBank().getId(),
+            question.getQuestionBank().getName(),
+            question.getQuestionBank().getSubject().getId(),
+            question.getQuestionBank().getSubject().getName(),
             options
         );
     }
@@ -755,12 +864,48 @@ public class PortalService {
 
         if (!sessions.isEmpty()) {
             examSessionRepository.deleteAll(sessions);
+            examSessionRepository.flush();
         }
 
         List<ExamQuestion> examQuestions = examQuestionRepository.findByExam_IdOrderByDisplayOrderAscIdAsc(examId);
         if (!examQuestions.isEmpty()) {
             examQuestionRepository.deleteAll(examQuestions);
+            examQuestionRepository.flush();
         }
+    }
+
+    private void deleteQuestionBanksBySubjectId(Long subjectId) {
+        List<QuestionBank> questionBanks = questionBankRepository.findBySubject_Id(subjectId);
+        for (QuestionBank questionBank : questionBanks) {
+            deleteQuestionsByBankId(questionBank.getId());
+        }
+        if (!questionBanks.isEmpty()) {
+            questionBankRepository.deleteBySubject_Id(subjectId);
+            questionBankRepository.flush();
+        }
+    }
+
+    private void deleteQuestionsByBankId(Long questionBankId) {
+        List<Question> questions = questionRepository.findByQuestionBank_Id(questionBankId);
+        if (questions.isEmpty()) {
+            return;
+        }
+
+        List<Long> questionIds = questions.stream().map(Question::getId).toList();
+        List<ExamQuestion> examQuestions = examQuestionRepository.findByQuestion_IdIn(questionIds);
+        if (!examQuestions.isEmpty()) {
+            examQuestionRepository.deleteByQuestion_IdIn(questionIds);
+            examQuestionRepository.flush();
+        }
+
+        List<QuestionOption> questionOptions = questionOptionRepository.findByQuestion_IdIn(questionIds);
+        if (!questionOptions.isEmpty()) {
+            questionOptionRepository.deleteByQuestion_IdIn(questionIds);
+            questionOptionRepository.flush();
+        }
+
+        questionRepository.deleteByQuestionBank_Id(questionBankId);
+        questionRepository.flush();
     }
 
     private ApiDtos.ExamSessionDto toSessionDto(ExamSession session) {
@@ -915,13 +1060,13 @@ public class PortalService {
         );
     }
 
-    private void saveImportedQuestion(Subject subject, ImportedQuestionData questionData) {
-        ApiDtos.QuestionPayload payload = new ApiDtos.QuestionPayload(questionData.content(), subject.getId(), questionData.options());
+    private void saveImportedQuestion(QuestionBank questionBank, ImportedQuestionData questionData) {
+        ApiDtos.QuestionPayload payload = new ApiDtos.QuestionPayload(questionData.content(), questionBank.getId(), questionData.options());
         validateQuestionPayload(payload);
 
         Question question = new Question();
         question.setContent(questionData.content());
-        question.setSubject(subject);
+        question.setQuestionBank(questionBank);
         question.setCreatedBy(getCurrentUser());
         Question saved = questionRepository.save(question);
 
@@ -963,17 +1108,24 @@ public class PortalService {
 
     private ImportedQuestionData parseQuestionBlock(String block) {
         List<String> lines = block.lines()
-            .map(String::trim)
+            .map(line -> line.replace("\r", ""))
+            .map(String::strip)
             .filter(line -> !line.isBlank())
             .toList();
 
         Map<String, String> values = new LinkedHashMap<>();
         Set<String> allowedKeys = Set.of("Q", "A", "B", "C", "D", "ANSWER");
+        String currentKey = null;
 
         for (String line : lines) {
             int separatorIndex = line.indexOf(':');
             if (separatorIndex < 1) {
-                throw new BadRequestException("Each line must use the format KEY: value");
+                if (currentKey == null || "ANSWER".equals(currentKey)) {
+                    throw new BadRequestException("Each line must use the format KEY: value");
+                }
+
+                values.put(currentKey, values.get(currentKey) + "\n" + line.trim());
+                continue;
             }
 
             String key = line.substring(0, separatorIndex).trim().toUpperCase();
@@ -990,6 +1142,7 @@ public class PortalService {
             }
 
             values.put(key, value);
+            currentKey = key;
         }
 
         List<String> requiredKeys = List.of("Q", "A", "B", "C", "D", "ANSWER");

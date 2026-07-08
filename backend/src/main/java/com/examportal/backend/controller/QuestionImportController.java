@@ -20,6 +20,14 @@ public class QuestionImportController {
     }
 
     @PreAuthorize("hasAnyRole('ADMIN','INSTRUCTOR')")
+    @PostMapping("/preview")
+    public ResponseEntity<ApiDtos.QuestionImportPreviewDto> previewImportQuestions(
+        @Valid @RequestBody ApiDtos.QuestionImportPayload payload
+    ) {
+        return ResponseEntity.ok(portalService.previewQuestionImport(payload));
+    }
+
+    @PreAuthorize("hasAnyRole('ADMIN','INSTRUCTOR')")
     @PostMapping
     public ResponseEntity<ApiDtos.QuestionImportResultDto> importQuestions(
         @Valid @RequestBody ApiDtos.QuestionImportPayload payload

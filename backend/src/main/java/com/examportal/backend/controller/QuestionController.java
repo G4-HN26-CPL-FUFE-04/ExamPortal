@@ -27,8 +27,9 @@ public class QuestionController {
 
     @GetMapping
     public ResponseEntity<List<ApiDtos.QuestionSummaryDto>> getQuestions(@RequestParam(required = false) String keyword,
-                                                                         @RequestParam(required = false) Long subjectId) {
-        return ResponseEntity.ok(portalService.getQuestions(keyword, subjectId));
+                                                                         @RequestParam(required = false) Long subjectId,
+                                                                         @RequestParam(required = false) Long questionBankId) {
+        return ResponseEntity.ok(portalService.getQuestions(keyword, subjectId, questionBankId));
     }
 
     @GetMapping("/{id:\\d+}")

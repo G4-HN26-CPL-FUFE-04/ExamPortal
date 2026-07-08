@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { PageSection } from '../../components/CommonUI'
-import { api, toSubjectSlug } from '../../lib/appCore'
+import { api, toQuestionBankSlug, toSubjectSlug } from '../../lib/appCore'
 
 function getManagerBasePath() {
   return window.location.pathname.startsWith('/instructor') ? '/instructor' : '/admin'
@@ -71,10 +71,13 @@ function QuestionEditor({ title, form, onSubmit, onCancel, onChangeContent, onOp
 function QuestionImportPanel({
   importText,
   importError,
+  importPreviewErrors,
   importMessage,
   busy,
   onChangeText,
   onFileSelect,
+  onClear,
+  onRemoveInvalidBlocks,
   onImport,
   onCancel,
 }) {
@@ -83,7 +86,7 @@ function QuestionImportPanel({
       <div className="row-between wrap-row">
         <div>
           <h3>Import questions</h3>
-          <p className="muted">Use format Q / A / B / C / D / ANSWER. Questions are imported into the current subject only.</p>
+          <p className="muted">Use format Q / A / B / C / D / ANSWER. Questions are imported into the current bank only.</p>
         </div>
         <button type="button" className="ghost-button" onClick={onCancel}>
           Close
@@ -92,12 +95,18 @@ function QuestionImportPanel({
 
       <label>
         Paste text
-        <textarea
-          value={importText}
-          onChange={(event) => onChangeText(event.target.value)}
-          rows="14"
-          placeholder={questionImportSample}
-        />
+        <div className="import-textarea-wrap">
+          <textarea
+            value={importText}
+            onChange={(event) => onChangeText(event.target.value)}
+            rows="8"
+            placeholder={questionImportSample}
+            className="import-textarea"
+          />
+          <button type="button" className="import-clear-button" onClick={onClear} disabled={!importText.trim()}>
+            Clear
+          </button>
+        </div>
       </label>
 
       <label>
@@ -112,12 +121,38 @@ function QuestionImportPanel({
         <button type="button" className="primary-button" onClick={onImport} disabled={busy || !importText.trim()}>
           Import all
         </button>
+        {importPreviewErrors.length ? (
+          <button type="button" className="ghost-button danger-button" onClick={onRemoveInvalidBlocks} disabled={busy}>
+            Remove invalid blocks
+          </button>
+        ) : null}
       </div>
 
       {importError ? <p className="error-text">{importError}</p> : null}
       {importMessage ? <p className="success-text">{importMessage}</p> : null}
+      {importPreviewErrors.length ? (
+        <div className="stack">
+          <h4>Invalid blocks</h4>
+          {importPreviewErrors.map((item) => (
+            <article key={item.blockNumber} className="import-error-card">
+              <strong>Block {item.blockNumber}</strong>
+              <p className="muted">{item.message}</p>
+              <pre className="json-preview">{item.rawBlock}</pre>
+            </article>
+          ))}
+        </div>
+      ) : null}
     </div>
   )
+}
+
+function splitImportBlocks(rawText) {
+  return String(rawText || '')
+    .replace(/\r\n/g, '\n')
+    .trim()
+    .split(/\n\s*\n/)
+    .map((block) => block.trim())
+    .filter(Boolean)
 }
 
 function QuestionDetailsLoader({ questionId }) {
@@ -142,8 +177,19 @@ function QuestionDetailsLoader({ questionId }) {
   )
 }
 
+function PencilIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+      <path
+        d="M4 20l4.2-1 9.1-9.1-3.2-3.2L5 15.8 4 20zm12.6-14.9 2.3 2.3 1.1-1.1a1.6 1.6 0 000-2.3l-.1-.1a1.6 1.6 0 00-2.3 0l-1 1.2z"
+        fill="currentColor"
+      />
+    </svg>
+  )
+}
+
 export default function SubjectQuestionsPage() {
-  const { subjectSlug } = useParams()
+  const { subjectSlug, bankSlug } = useParams()
   const navigate = useNavigate()
   const basePath = getManagerBasePath()
   const emptyForm = {
@@ -158,45 +204,110 @@ export default function SubjectQuestionsPage() {
 
   const [questions, setQuestions] = useState([])
   const [subjects, setSubjects] = useState([])
+  const [subjectsLoaded, setSubjectsLoaded] = useState(false)
+  const [banks, setBanks] = useState([])
+  const [banksLoaded, setBanksLoaded] = useState(false)
   const [form, setForm] = useState(emptyForm)
   const [editingQuestionId, setEditingQuestionId] = useState(null)
   const [expandedQuestionId, setExpandedQuestionId] = useState(null)
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [showImportPanel, setShowImportPanel] = useState(false)
+  const [isEditingBankName, setIsEditingBankName] = useState(false)
+  const [bankNameDraft, setBankNameDraft] = useState('')
   const [keyword, setKeyword] = useState('')
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [importText, setImportText] = useState('')
   const [importError, setImportError] = useState('')
   const [importMessage, setImportMessage] = useState('')
+  const [importPreviewErrors, setImportPreviewErrors] = useState([])
   const [importBusy, setImportBusy] = useState(false)
+  const [pendingSubjectSlug, setPendingSubjectSlug] = useState('')
+  const [pendingBankSlug, setPendingBankSlug] = useState('')
 
   const selectedSubject = useMemo(
-    () => subjects.find((subject) => toSubjectSlug(subject.name) === subjectSlug),
-    [subjects, subjectSlug],
+    () => {
+      const activeSlug = pendingSubjectSlug || subjectSlug
+      return subjects.find((subject) => toSubjectSlug(subject.name) === activeSlug)
+    },
+    [pendingSubjectSlug, subjects, subjectSlug],
   )
 
-  const loadQuestions = async () => {
-    if (!selectedSubject) return
-    const params = { subjectId: Number(selectedSubject.id) }
+  const selectedBank = useMemo(
+    () => {
+      const activeSlug = pendingBankSlug || bankSlug
+      return banks.find((bank) => toQuestionBankSlug(bank.name) === activeSlug)
+    },
+    [bankSlug, banks, pendingBankSlug],
+  )
+
+  const loadQuestions = async (questionBankId = selectedBank?.id) => {
+    if (!questionBankId) return
+    const params = { questionBankId }
     if (keyword.trim()) params.keyword = keyword.trim()
     const { data } = await api.get('/questions', { params })
     setQuestions(data)
   }
 
   useEffect(() => {
-    api.get('/subjects').then(({ data }) => setSubjects(data))
+    api.get('/subjects')
+      .then(({ data }) => {
+        setSubjects(data)
+        setSubjectsLoaded(true)
+      })
+      .catch(() => {
+        setSubjectsLoaded(true)
+        setError('Unable to load subjects.')
+      })
   }, [])
 
   useEffect(() => {
-    if (subjects.length && !selectedSubject) {
-      navigate(`${basePath}/questions`, { replace: true })
+    if (subjectsLoaded && subjects.length && !selectedSubject) {
+      navigate(`${basePath}/subjects`, { replace: true })
     }
-  }, [basePath, subjects, selectedSubject, navigate])
+  }, [basePath, navigate, selectedSubject, subjects, subjectsLoaded])
 
   useEffect(() => {
-    loadQuestions()
-  }, [selectedSubject?.id, keyword])
+    if (pendingSubjectSlug === subjectSlug) {
+      setPendingSubjectSlug('')
+    }
+  }, [pendingSubjectSlug, subjectSlug])
+
+  useEffect(() => {
+    if (pendingBankSlug === bankSlug) {
+      setPendingBankSlug('')
+    }
+  }, [bankSlug, pendingBankSlug])
+
+  useEffect(() => {
+    if (!selectedSubject) return
+    setBanksLoaded(false)
+    api.get('/question-banks', { params: { subjectId: selectedSubject.id } })
+      .then(({ data }) => {
+        setBanks(data)
+        setBanksLoaded(true)
+      })
+      .catch(() => {
+        setBanks([])
+        setBanksLoaded(true)
+        setError('Unable to load question banks.')
+      })
+  }, [selectedSubject?.id])
+
+  useEffect(() => {
+    if (banksLoaded && !selectedBank) {
+      navigate(`${basePath}/subjects/${subjectSlug}`, { replace: true })
+    }
+  }, [basePath, bankSlug, banksLoaded, navigate, selectedBank, subjectSlug])
+
+  useEffect(() => {
+    if (!selectedBank) return
+    setBankNameDraft(selectedBank.name)
+  }, [selectedBank?.id, selectedBank?.name])
+
+  useEffect(() => {
+    loadQuestions().catch(() => setError('Unable to load questions.'))
+  }, [selectedBank?.id, keyword])
 
   const closeEditor = () => {
     setForm(emptyForm)
@@ -209,6 +320,7 @@ export default function SubjectQuestionsPage() {
     setShowImportPanel(false)
     setImportError('')
     setImportMessage('')
+    setImportPreviewErrors([])
   }
 
   const handleOptionChange = (index, value) => {
@@ -232,13 +344,13 @@ export default function SubjectQuestionsPage() {
     setError('')
     setMessage('')
     try {
-      if (!selectedSubject) {
-        setError('Please choose a subject first.')
+      if (!selectedBank) {
+        setError('Please choose a question bank first.')
         return
       }
       const payload = {
         ...form,
-        subjectId: Number(selectedSubject.id),
+        questionBankId: Number(selectedBank.id),
         options: form.options.map((option) => ({
           label: option.label,
           content: option.content,
@@ -250,7 +362,7 @@ export default function SubjectQuestionsPage() {
       await api[method](endpoint, payload)
       setMessage(editingQuestionId ? 'Question updated.' : 'Question created.')
       closeEditor()
-      loadQuestions()
+      loadQuestions(selectedBank.id)
     } catch (requestError) {
       setError(requestError.response?.data?.message || 'Unable to save question.')
     }
@@ -280,7 +392,7 @@ export default function SubjectQuestionsPage() {
     if (editingQuestionId === id) closeEditor()
     if (expandedQuestionId === id) setExpandedQuestionId(null)
     setMessage('Question deleted.')
-    loadQuestions()
+    loadQuestions(selectedBank.id)
   }
 
   const startCreate = () => {
@@ -299,6 +411,7 @@ export default function SubjectQuestionsPage() {
     setExpandedQuestionId(null)
     setImportError('')
     setImportMessage('')
+    setImportPreviewErrors([])
   }
 
   const handleImportFile = async (event) => {
@@ -308,21 +421,35 @@ export default function SubjectQuestionsPage() {
     setImportText(content)
     setImportError('')
     setImportMessage('')
+    setImportPreviewErrors([])
   }
 
   const handleConfirmImport = async () => {
-    if (!selectedSubject) return
+    if (!selectedBank) return
     setImportBusy(true)
     setImportError('')
     setImportMessage('')
+    setImportPreviewErrors([])
     try {
+      const previewPayload = {
+        questionBankId: Number(selectedBank.id),
+        rawText: importText,
+      }
+      const { data: preview } = await api.post('/question-imports/preview', previewPayload)
+      if (preview.errors.length) {
+        setImportPreviewErrors(preview.errors)
+        setImportError('Some blocks are invalid. Remove them or fix them before importing.')
+        return
+      }
+
       const { data } = await api.post('/question-imports', {
-        subjectId: Number(selectedSubject.id),
+        questionBankId: Number(selectedBank.id),
         rawText: importText,
       })
       setImportMessage(`Imported ${data.importedCount} questions.`)
       setImportText('')
-      loadQuestions()
+      setImportPreviewErrors([])
+      loadQuestions(selectedBank.id)
     } catch (requestError) {
       setImportError(requestError.response?.data?.message || `Unable to import questions (${requestError.response?.status || 'network error'}).`)
     } finally {
@@ -334,9 +461,43 @@ export default function SubjectQuestionsPage() {
     setExpandedQuestionId((prev) => (prev === id ? null : id))
   }
 
-  if (!selectedSubject) {
+  const handleRemoveInvalidBlocks = () => {
+    if (!importPreviewErrors.length) return
+    const invalidBlockNumbers = new Set(importPreviewErrors.map((item) => item.blockNumber))
+    const cleanedText = splitImportBlocks(importText)
+      .filter((_, index) => !invalidBlockNumbers.has(index + 1))
+      .join('\n\n')
+
+    setImportText(cleanedText)
+    setImportPreviewErrors([])
+    setImportError(cleanedText ? 'Invalid blocks removed. Review the remaining content, then import again.' : '')
+    setImportMessage(cleanedText ? '' : 'All invalid blocks were removed.')
+  }
+
+  const handleBankRename = async (event) => {
+    event.preventDefault()
+    if (!selectedSubject || !selectedBank) return
+    setError('')
+    setMessage('')
+    try {
+      const { data } = await api.put(`/question-banks/${selectedBank.id}`, {
+        name: bankNameDraft.trim(),
+        subjectId: selectedSubject.id,
+      })
+      const nextSlug = toQuestionBankSlug(data.name)
+      setPendingBankSlug(nextSlug)
+      setBanks((prev) => prev.map((bank) => (bank.id === data.id ? data : bank)))
+      setIsEditingBankName(false)
+      setMessage('Question bank updated.')
+      navigate(`${basePath}/subjects/${subjectSlug}/${nextSlug}`, { replace: true })
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || 'Unable to save question bank.')
+    }
+  }
+
+  if (!selectedSubject || !selectedBank) {
     return (
-      <PageSection title="Question Bank" description="Loading subject bank...">
+      <PageSection title="Question Bank" description="Loading question bank...">
         <div className="panel">
           <p>Loading...</p>
         </div>
@@ -345,16 +506,56 @@ export default function SubjectQuestionsPage() {
   }
 
   return (
-    <PageSection title={`${selectedSubject.name} Question Bank`} description="Questions in this bank belong only to the selected subject.">
+    <PageSection title={`${selectedBank.name}`} description={`Questions in ${selectedSubject.name} / ${selectedBank.name}.`}>
       <div className="stack">
         <div className="panel stack">
           <div className="row-between wrap-row">
             <div>
-              <p className="eyebrow">Subject</p>
+              <p className="eyebrow">Subject / Bank</p>
               <h3>{selectedSubject.name}</h3>
+              {isEditingBankName ? (
+                <form className="subject-inline-edit" onSubmit={handleBankRename}>
+                  <input
+                    value={bankNameDraft}
+                    onChange={(event) => setBankNameDraft(event.target.value)}
+                    required
+                    autoFocus
+                  />
+                  <div className="action-row">
+                    <button type="submit" className="primary-button">
+                      Save
+                    </button>
+                    <button
+                      type="button"
+                      className="ghost-button"
+                      onClick={() => {
+                        setIsEditingBankName(false)
+                        setBankNameDraft(selectedBank.name)
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <div className="subject-title-row">
+                  <p className="subject-bank-title">{selectedBank.name}</p>
+                  <button
+                    type="button"
+                    className="icon-button"
+                    aria-label="Edit question bank name"
+                    onClick={() => {
+                      setIsEditingBankName(true)
+                      setBankNameDraft(selectedBank.name)
+                    }}
+                  >
+                    <PencilIcon />
+                  </button>
+                </div>
+              )}
             </div>
             <div className="action-row">
-              <Link to={`${basePath}/questions`} className="ghost-button back-link-button">Change subject</Link>
+              <Link to={`${basePath}/subjects/${subjectSlug}`} className="ghost-button back-link-button">Back to banks</Link>
               <button type="button" className="ghost-button" onClick={startImport}>
                 Import questions
               </button>
@@ -381,10 +582,23 @@ export default function SubjectQuestionsPage() {
           <QuestionImportPanel
             importText={importText}
             importError={importError}
+            importPreviewErrors={importPreviewErrors}
             importMessage={importMessage}
             busy={importBusy}
-            onChangeText={setImportText}
+            onChangeText={(value) => {
+              setImportText(value)
+              setImportError('')
+              setImportMessage('')
+              setImportPreviewErrors([])
+            }}
             onFileSelect={handleImportFile}
+            onClear={() => {
+              setImportText('')
+              setImportError('')
+              setImportMessage('')
+              setImportPreviewErrors([])
+            }}
+            onRemoveInvalidBlocks={handleRemoveInvalidBlocks}
             onImport={handleConfirmImport}
             onCancel={closeImportPanel}
           />
@@ -452,7 +666,7 @@ export default function SubjectQuestionsPage() {
             </article>
           ))}
 
-          {!questions.length ? <p className="muted">No questions found for this subject.</p> : null}
+          {!questions.length ? <p className="muted">No questions found for this bank.</p> : null}
         </div>
       </div>
     </PageSection>
