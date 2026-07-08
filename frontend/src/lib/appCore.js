@@ -7,9 +7,49 @@ export const api = axios.create({ baseURL: API_BASE_URL })
 export const authStorageKey = 'examportal-auth'
 export const emptyAuth = { token: '', user: null }
 
+function canUseStorage() {
+  try {
+    return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined'
+  } catch {
+    return false
+  }
+}
+
 export function readStoredAuth() {
-  const saved = localStorage.getItem(authStorageKey)
-  return saved ? JSON.parse(saved) : emptyAuth
+  if (!canUseStorage()) return emptyAuth
+
+  try {
+    const saved = window.localStorage.getItem(authStorageKey)
+    if (!saved) return emptyAuth
+
+    const parsed = JSON.parse(saved)
+    if (!parsed || typeof parsed !== 'object') return emptyAuth
+    return {
+      token: typeof parsed.token === 'string' ? parsed.token : '',
+      user: parsed.user && typeof parsed.user === 'object' ? parsed.user : null,
+    }
+  } catch {
+    try {
+      window.localStorage.removeItem(authStorageKey)
+    } catch {
+      // Ignore storage cleanup failures and keep the app usable.
+    }
+    return emptyAuth
+  }
+}
+
+export function writeStoredAuth(auth) {
+  if (!canUseStorage()) return
+
+  try {
+    if (auth?.token) {
+      window.localStorage.setItem(authStorageKey, JSON.stringify(auth))
+    } else {
+      window.localStorage.removeItem(authStorageKey)
+    }
+  } catch {
+    // Ignore storage write failures and keep the app usable.
+  }
 }
 
 export function formatDate(value) {
