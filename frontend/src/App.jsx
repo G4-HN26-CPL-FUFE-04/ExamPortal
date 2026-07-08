@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import './App.css'
 import Shell from './components/Shell'
-import { api, authStorageKey, readStoredAuth } from './lib/appCore'
+import { api, readStoredAuth, writeStoredAuth } from './lib/appCore'
 import AuthPage from './pages/AuthPage'
 import AdminDashboardPage from './pages/admin/DashboardPage'
 import AdminDraftsPage from './pages/admin/DraftsPage'
@@ -25,11 +25,7 @@ function App() {
   const [auth, setAuth] = useState(readStoredAuth)
 
   useEffect(() => {
-    if (auth?.token) {
-      localStorage.setItem(authStorageKey, JSON.stringify(auth))
-    } else {
-      localStorage.removeItem(authStorageKey)
-    }
+    writeStoredAuth(auth)
   }, [auth])
 
   useEffect(() => {
