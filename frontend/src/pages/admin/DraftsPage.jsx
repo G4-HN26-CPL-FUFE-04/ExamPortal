@@ -63,6 +63,7 @@ function ExamEditor({ form, subjects, busy, editingId, onChange, onSubjectChange
 export default function DraftsPage() {
   const [exams, setExams] = useState([])
   const [subjects, setSubjects] = useState([])
+  const [subjectBanks, setSubjectBanks] = useState([])
   const [subjectQuestions, setSubjectQuestions] = useState([])
   const [selectedExamId, setSelectedExamId] = useState(null)
   const [selectedExamDetail, setSelectedExamDetail] = useState(null)
@@ -71,6 +72,7 @@ export default function DraftsPage() {
   const [editingExamId, setEditingExamId] = useState(null)
   const [selectedQuestionIds, setSelectedQuestionIds] = useState([])
   const [selectedExamQuestionIds, setSelectedExamQuestionIds] = useState([])
+  const [selectedQuestionBankId, setSelectedQuestionBankId] = useState('')
   const [bankKeyword, setBankKeyword] = useState('')
   const [examQuestionKeyword, setExamQuestionKeyword] = useState('')
   const [randomCount, setRandomCount] = useState(1)
@@ -105,9 +107,12 @@ export default function DraftsPage() {
 
   const filteredBankQuestions = useMemo(() => {
     const keyword = bankKeyword.trim().toLowerCase()
-    if (!keyword) return availableQuestions
-    return availableQuestions.filter((question) => question.content.toLowerCase().includes(keyword))
-  }, [availableQuestions, bankKeyword])
+    return availableQuestions.filter((question) => {
+      const matchesBank = !selectedQuestionBankId || String(question.questionBankId) === String(selectedQuestionBankId)
+      const matchesKeyword = !keyword || question.content.toLowerCase().includes(keyword)
+      return matchesBank && matchesKeyword
+    })
+  }, [availableQuestions, bankKeyword, selectedQuestionBankId])
 
   const filteredExamQuestions = useMemo(() => {
     const keyword = examQuestionKeyword.trim().toLowerCase()
@@ -163,17 +168,23 @@ export default function DraftsPage() {
 
   useEffect(() => {
     if (!activeSubjectId) {
+      setSubjectBanks([])
       setSubjectQuestions([])
       setSelectedQuestionIds([])
       setSelectedExamQuestionIds([])
       return
     }
 
-    api.get('/questions', { params: { subjectId: activeSubjectId } })
-      .then(({ data }) => {
-        setSubjectQuestions(data)
+    Promise.all([
+      api.get('/question-banks', { params: { subjectId: activeSubjectId } }),
+      api.get('/questions', { params: { subjectId: activeSubjectId } }),
+    ])
+      .then(([banksRes, questionsRes]) => {
+        setSubjectBanks(banksRes.data)
+        setSubjectQuestions(questionsRes.data)
       })
       .catch(() => {
+        setSubjectBanks([])
         setSubjectQuestions([])
         setSelectedQuestionIds([])
         setSelectedExamQuestionIds([])
@@ -183,6 +194,7 @@ export default function DraftsPage() {
   useEffect(() => {
     setSelectedQuestionIds([])
     setSelectedExamQuestionIds([])
+    setSelectedQuestionBankId('')
     setBankKeyword('')
     setExamQuestionKeyword('')
     setShowQuestionBank(false)
@@ -348,7 +360,11 @@ export default function DraftsPage() {
   }
 
   const handleSelectAllExamQuestions = () => {
-    setSelectedExamQuestionIds(filteredExamQuestions.map((question) => question.id))
+    setSelectedExamQuestionIds(
+      filteredExamQuestions
+        .map((question) => question.id)
+        .filter((id) => id != null),
+    )
   }
 
   const handleSelectAllBankQuestions = () => {
@@ -378,6 +394,12 @@ export default function DraftsPage() {
     } finally {
       setPreviewLoading(false)
     }
+  }
+
+  const refreshSelectedExam = async (examId) => {
+    await loadExams(examId)
+    const { data } = await api.get(`/drafts/${examId}`)
+    setSelectedExamDetail(normalizeExam(data))
   }
 
   const handleClosePreview = () => {
@@ -412,9 +434,7 @@ export default function DraftsPage() {
       }
       setSelectedQuestionIds([])
       setMessage(`${questionIds.length} question(s) added to draft.`)
-      await loadExams(selectedExam.id)
-      const { data } = await api.get(`/drafts/${selectedExam.id}`)
-      setSelectedExamDetail(normalizeExam(data))
+      await refreshSelectedExam(selectedExam.id)
       setShowQuestionBank(false)
     } catch (requestError) {
       setError(requestError.response?.data?.message || 'Unable to add selected questions.')
@@ -425,7 +445,7 @@ export default function DraftsPage() {
 
   const handleRandomizeQuestions = (countOverride = null) => {
     if (!selectedExam) return
-    const pool = availableQuestions
+    const pool = filteredBankQuestions
     const requestedCount = countOverride == null ? normalizedRandomCount : countOverride
     const maxCount = Math.min(requestedCount, pool.length, remainingSlots)
     if (maxCount < 1) {
@@ -449,19 +469,21 @@ export default function DraftsPage() {
   }
 
   const handleRemoveSelectedQuestions = async (examQuestionIds = selectedExamQuestionIds) => {
-    if (!selectedExam || !examQuestionIds.length) return
+    const validExamQuestionIds = examQuestionIds.filter((id) => id != null)
+    if (!selectedExam || !validExamQuestionIds.length) {
+      setError('No questions selected to remove.')
+      return
+    }
     setBusy(true)
     setError('')
     setMessage('')
     try {
-      for (const examQuestionId of examQuestionIds) {
-        await api.delete(`/drafts/${selectedExam.id}/questions/${examQuestionId}`)
-      }
+      await Promise.all(
+        validExamQuestionIds.map((examQuestionId) => api.delete(`/drafts/${selectedExam.id}/questions/${examQuestionId}`)),
+      )
       setSelectedExamQuestionIds([])
-      setMessage(`${examQuestionIds.length} question(s) removed from draft.`)
-      await loadExams(selectedExam.id)
-      const { data } = await api.get(`/drafts/${selectedExam.id}`)
-      setSelectedExamDetail(normalizeExam(data))
+      setMessage(`${validExamQuestionIds.length} question(s) removed from draft.`)
+      await refreshSelectedExam(selectedExam.id)
     } catch (requestError) {
       setError(requestError.response?.data?.message || 'Unable to remove selected questions.')
     } finally {
@@ -543,7 +565,7 @@ export default function DraftsPage() {
                     type="checkbox"
                     checked={selectedExamQuestionIds.includes(question.id)}
                     onChange={() => handleToggleExamQuestion(question.id)}
-                    disabled={busy}
+                    disabled={busy || question.id == null}
                   />
                   <span>{question.content}</span>
                 </label>
@@ -613,6 +635,19 @@ export default function DraftsPage() {
             </div>
 
             <label>
+              Question bank
+              <select
+                value={selectedQuestionBankId}
+                onChange={(event) => setSelectedQuestionBankId(event.target.value)}
+              >
+                <option value="">All banks</option>
+                {subjectBanks.map((bank) => (
+                  <option key={bank.id} value={bank.id}>{bank.name}</option>
+                ))}
+              </select>
+            </label>
+
+            <label>
               Search bank
               <input
                 value={bankKeyword}
@@ -630,7 +665,10 @@ export default function DraftsPage() {
                     onChange={() => handleToggleQuestion(question.id)}
                     disabled={busy}
                   />
-                  <span>{question.content}</span>
+                  <span>
+                    {question.content}
+                    <small className="muted">{question.questionBankName}</small>
+                  </span>
                 </label>
               ))}
             </div>
@@ -641,7 +679,7 @@ export default function DraftsPage() {
                   type="button"
                   className="ghost-button"
                   onClick={handleRandomizeQuestions}
-                  disabled={busy || !availableQuestions.length || remainingSlots < 1}
+                  disabled={busy || !filteredBankQuestions.length || remainingSlots < 1}
                 >
                   Random select
                 </button>
@@ -665,7 +703,7 @@ export default function DraftsPage() {
                     setRandomCount(remainingSlots)
                     handleRandomizeQuestions(remainingSlots)
                   }}
-                  disabled={busy || remainingSlots < 1}
+                  disabled={busy || !filteredBankQuestions.length || remainingSlots < 1}
                 >
                   Random max
                 </button>
@@ -710,6 +748,7 @@ export default function DraftsPage() {
             </div>
 
             {!availableQuestions.length ? <p className="muted">All questions from this subject are already in the draft.</p> : null}
+            {availableQuestions.length && !filteredBankQuestions.length ? <p className="muted">No questions match the current bank filter.</p> : null}
           </div>
         </div>
       ) : null}

@@ -3,6 +3,9 @@ package com.examportal.backend.service;
 import com.examportal.backend.dto.ApiDtos;
 import com.examportal.backend.entity.Attempt;
 import com.examportal.backend.entity.AttemptAnswer;
+import com.examportal.backend.entity.Classroom;
+import com.examportal.backend.entity.ClassroomExamAssignment;
+import com.examportal.backend.entity.ClassroomMember;
 import com.examportal.backend.entity.Exam;
 import com.examportal.backend.entity.ExamQuestion;
 import com.examportal.backend.entity.ExamSession;
@@ -15,6 +18,7 @@ import com.examportal.backend.entity.Role;
 import com.examportal.backend.entity.Subject;
 import com.examportal.backend.entity.User;
 import com.examportal.backend.entity.enums.AttemptStatus;
+import com.examportal.backend.entity.enums.ClassroomMemberStatus;
 import com.examportal.backend.entity.enums.RoleName;
 import com.examportal.backend.entity.enums.SessionStatus;
 import com.examportal.backend.entity.enums.UserStatus;
@@ -22,6 +26,9 @@ import com.examportal.backend.exception.BadRequestException;
 import com.examportal.backend.exception.NotFoundException;
 import com.examportal.backend.repository.AttemptAnswerRepository;
 import com.examportal.backend.repository.AttemptRepository;
+import com.examportal.backend.repository.ClassroomExamAssignmentRepository;
+import com.examportal.backend.repository.ClassroomMemberRepository;
+import com.examportal.backend.repository.ClassroomRepository;
 import com.examportal.backend.repository.ExamQuestionRepository;
 import com.examportal.backend.repository.ExamRepository;
 import com.examportal.backend.repository.ExamSessionRepository;
@@ -71,6 +78,9 @@ public class PortalService {
     private final ExamSessionQuestionOptionRepository examSessionQuestionOptionRepository;
     private final AttemptRepository attemptRepository;
     private final AttemptAnswerRepository attemptAnswerRepository;
+    private final ClassroomRepository classroomRepository;
+    private final ClassroomMemberRepository classroomMemberRepository;
+    private final ClassroomExamAssignmentRepository classroomExamAssignmentRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
@@ -83,6 +93,8 @@ public class PortalService {
                          ExamSessionQuestionRepository examSessionQuestionRepository,
                          ExamSessionQuestionOptionRepository examSessionQuestionOptionRepository,
                          AttemptRepository attemptRepository, AttemptAnswerRepository attemptAnswerRepository,
+                         ClassroomRepository classroomRepository, ClassroomMemberRepository classroomMemberRepository,
+                         ClassroomExamAssignmentRepository classroomExamAssignmentRepository,
                          PasswordEncoder passwordEncoder, AuthenticationManager authenticationManager,
                          JwtService jwtService) {
         this.userRepository = userRepository;
@@ -98,6 +110,9 @@ public class PortalService {
         this.examSessionQuestionOptionRepository = examSessionQuestionOptionRepository;
         this.attemptRepository = attemptRepository;
         this.attemptAnswerRepository = attemptAnswerRepository;
+        this.classroomRepository = classroomRepository;
+        this.classroomMemberRepository = classroomMemberRepository;
+        this.classroomExamAssignmentRepository = classroomExamAssignmentRepository;
         this.passwordEncoder = passwordEncoder;
         this.authenticationManager = authenticationManager;
         this.jwtService = jwtService;
@@ -222,6 +237,149 @@ public class PortalService {
         deleteQuestionBanksBySubjectId(id);
         subjectRepository.delete(subject);
         subjectRepository.flush();
+    }
+
+    public List<ApiDtos.ClassroomDto> getClassrooms() {
+        User currentUser = getCurrentUser();
+        if (currentUser.getRole().getName() == RoleName.STUDENT) {
+            return classroomMemberRepository.findByUser_IdOrderByJoinedAtDesc(currentUser.getId()).stream()
+                .map(member -> toClassroomDto(member.getClassroom(), member.getStatus()))
+                .toList();
+        }
+
+        List<Classroom> classrooms = currentUser.getRole().getName() == RoleName.ADMIN
+            ? classroomRepository.findAll()
+            : classroomRepository.findByCreatedBy_IdOrderByCreatedAtDesc(currentUser.getId());
+        return classrooms.stream()
+            .map(classroom -> toClassroomDto(classroom, null))
+            .toList();
+    }
+
+    public ApiDtos.ClassroomDto getClassroom(Long id) {
+        User currentUser = getCurrentUser();
+        Classroom classroom = findClassroom(id);
+        if (currentUser.getRole().getName() == RoleName.STUDENT) {
+            ClassroomMember member = findClassroomMember(id, currentUser.getId());
+            return toClassroomDto(classroom, member.getStatus());
+        }
+        ensureClassroomManagementAccess(classroom);
+        return toClassroomDto(classroom, null);
+    }
+
+    public ApiDtos.ClassroomDto saveClassroom(ApiDtos.ClassroomPayload payload, Long id) {
+        Classroom classroom = id == null ? new Classroom() : findClassroom(id);
+        if (id != null) {
+            ensureClassroomManagementAccess(classroom);
+        }
+
+        classroom.setName(normalizeRequiredText(payload.name(), "Classroom name is required"));
+        if (classroom.getCreatedBy() == null) {
+            classroom.setCreatedBy(getCurrentUser());
+            classroom.setJoinCode(generateJoinCode());
+        }
+        return toClassroomDto(classroomRepository.save(classroom), null);
+    }
+
+    public void deleteClassroom(Long id) {
+        Classroom classroom = findClassroom(id);
+        ensureClassroomManagementAccess(classroom);
+        classroomExamAssignmentRepository.deleteByClassroom_Id(classroom.getId());
+        classroomMemberRepository.deleteByClassroom_Id(classroom.getId());
+        classroomRepository.delete(classroom);
+    }
+
+    public ApiDtos.ClassroomDto regenerateClassroomJoinCode(Long id) {
+        Classroom classroom = findClassroom(id);
+        ensureClassroomManagementAccess(classroom);
+        classroom.setJoinCode(generateJoinCode());
+        return toClassroomDto(classroomRepository.save(classroom), null);
+    }
+
+    public ApiDtos.ClassroomDto joinClassroom(ApiDtos.ClassroomJoinPayload payload) {
+        User student = getCurrentUser();
+        Classroom classroom = classroomRepository.findByJoinCodeIgnoreCase(normalizeRequiredText(payload.joinCode(), "Join code is required"))
+            .orElseThrow(() -> new NotFoundException("Classroom not found"));
+
+        classroomMemberRepository.findByClassroom_IdAndUser_Id(classroom.getId(), student.getId())
+            .ifPresent(member -> {
+                if (member.getStatus() == ClassroomMemberStatus.APPROVED) {
+                    throw new BadRequestException("You have already joined this classroom");
+                }
+                throw new BadRequestException("Your join request is already pending approval");
+            });
+
+        ClassroomMember member = new ClassroomMember();
+        member.setClassroom(classroom);
+        member.setUser(student);
+        member.setStatus(ClassroomMemberStatus.PENDING);
+        classroomMemberRepository.save(member);
+        return toClassroomDto(classroom, ClassroomMemberStatus.PENDING);
+    }
+
+    public List<ApiDtos.ClassroomMemberDto> getClassroomMembers(Long classroomId) {
+        Classroom classroom = findClassroom(classroomId);
+        ensureClassroomManagementAccess(classroom);
+        return classroomMemberRepository.findByClassroom_IdOrderByStatusAscJoinedAtAsc(classroomId).stream()
+            .map(this::toClassroomMemberDto)
+            .toList();
+    }
+
+    public ApiDtos.ClassroomMemberDto approveClassroomMember(Long classroomId, Long memberId) {
+        Classroom classroom = findClassroom(classroomId);
+        ensureClassroomManagementAccess(classroom);
+        ClassroomMember member = findClassroomMemberById(memberId);
+        if (!member.getClassroom().getId().equals(classroom.getId())) {
+            throw new NotFoundException("Classroom member not found");
+        }
+        member.setStatus(ClassroomMemberStatus.APPROVED);
+        return toClassroomMemberDto(classroomMemberRepository.save(member));
+    }
+
+    public void removeClassroomMember(Long classroomId, Long memberId) {
+        Classroom classroom = findClassroom(classroomId);
+        ensureClassroomManagementAccess(classroom);
+        ClassroomMember member = findClassroomMemberById(memberId);
+        if (!member.getClassroom().getId().equals(classroom.getId())) {
+            throw new NotFoundException("Classroom member not found");
+        }
+        classroomMemberRepository.delete(member);
+    }
+
+    public void leaveClassroom(Long classroomId) {
+        User currentUser = getCurrentUser();
+        ClassroomMember member = findClassroomMember(classroomId, currentUser.getId());
+        classroomMemberRepository.delete(member);
+    }
+
+    public List<ApiDtos.ClassroomExamAssignmentDto> getClassroomAssignments(Long classroomId) {
+        Classroom classroom = findClassroom(classroomId);
+        ensureClassroomReadAccess(classroom);
+        return classroomExamAssignmentRepository.findByClassroom_IdOrderByAssignedAtDesc(classroomId).stream()
+            .map(this::toClassroomAssignmentDto)
+            .toList();
+    }
+
+    public ApiDtos.ClassroomExamAssignmentDto assignExamSessionToClassroom(Long classroomId, ApiDtos.ClassroomExamAssignmentPayload payload) {
+        Classroom classroom = findClassroom(classroomId);
+        ensureClassroomManagementAccess(classroom);
+        if (classroomExamAssignmentRepository.existsByClassroom_IdAndExamSession_Id(classroomId, payload.examSessionId())) {
+            throw new BadRequestException("Exam session is already assigned to this classroom");
+        }
+
+        ClassroomExamAssignment assignment = new ClassroomExamAssignment();
+        assignment.setClassroom(classroom);
+        assignment.setExamSession(findExamSession(payload.examSessionId()));
+        return toClassroomAssignmentDto(classroomExamAssignmentRepository.save(assignment));
+    }
+
+    public void removeClassroomAssignment(Long classroomId, Long assignmentId) {
+        Classroom classroom = findClassroom(classroomId);
+        ensureClassroomManagementAccess(classroom);
+        ClassroomExamAssignment assignment = findClassroomAssignment(assignmentId);
+        if (!assignment.getClassroom().getId().equals(classroom.getId())) {
+            throw new NotFoundException("Classroom assignment not found");
+        }
+        classroomExamAssignmentRepository.delete(assignment);
     }
 
     public List<ApiDtos.QuestionBankDto> getQuestionBanks(Long subjectId) {
@@ -429,14 +587,24 @@ public class PortalService {
         return getDraft(examId);
     }
 
-    public void removeQuestionFromExam(Long examId, Long questionId) {
+    public void removeQuestionFromExam(Long examId, Long examQuestionOrQuestionId) {
         ensureExamEditable(findExam(examId));
-        if (!examQuestionRepository.existsByIdAndExam_Id(questionId, examId)) {
-            throw new NotFoundException("Exam question not found");
+
+        long deletedByExamQuestionId = examQuestionRepository.deleteByIdAndExam_Id(examQuestionOrQuestionId, examId);
+        if (deletedByExamQuestionId > 0) {
+            examQuestionRepository.flush();
+            normalizeExamQuestionOrder(examId);
+            return;
         }
-        examQuestionRepository.delete(examQuestionRepository.findByIdAndExam_Id(questionId, examId)
-            .orElseThrow(() -> new NotFoundException("Exam question not found")));
-        normalizeExamQuestionOrder(examId);
+
+        long deletedByQuestionId = examQuestionRepository.deleteByExam_IdAndQuestion_Id(examId, examQuestionOrQuestionId);
+        if (deletedByQuestionId > 0) {
+            examQuestionRepository.flush();
+            normalizeExamQuestionOrder(examId);
+            return;
+        }
+
+        throw new NotFoundException("Exam question not found");
     }
 
     public ApiDtos.ExamDto reorderExamQuestions(Long examId, ApiDtos.ExamQuestionReorderPayload payload) {
@@ -468,11 +636,31 @@ public class PortalService {
     }
 
     public List<ApiDtos.ExamSessionDto> getExamSessions() {
-        return examSessionRepository.findAll().stream().map(this::toSessionDto).toList();
+        User currentUser = getCurrentUser();
+        if (currentUser.getRole().getName() != RoleName.STUDENT) {
+            return examSessionRepository.findAll().stream().map(this::toSessionDto).toList();
+        }
+
+        List<Long> approvedClassroomIds = getApprovedClassroomIds(currentUser.getId());
+        if (approvedClassroomIds.isEmpty()) {
+            return List.of();
+        }
+
+        Map<Long, List<String>> classroomNamesBySessionId = new LinkedHashMap<>();
+        for (ClassroomExamAssignment assignment : classroomExamAssignmentRepository.findByClassroom_IdIn(approvedClassroomIds)) {
+            classroomNamesBySessionId.computeIfAbsent(assignment.getExamSession().getId(), unused -> new ArrayList<>())
+                .add(assignment.getClassroom().getName());
+        }
+
+        return classroomNamesBySessionId.entrySet().stream()
+            .map(entry -> toSessionDto(findExamSession(entry.getKey()), entry.getValue()))
+            .toList();
     }
 
     public ApiDtos.ExamSessionDto getExamSession(Long id) {
-        return toSessionDto(findExamSession(id));
+        ExamSession session = findExamSession(id);
+        ensureSessionAccess(session);
+        return toSessionDto(session);
     }
 
     public ApiDtos.ExamSessionDto saveExamSession(ApiDtos.ExamSessionPayload payload, Long id) {
@@ -506,6 +694,7 @@ public class PortalService {
     }
 
     public void deleteExamSession(Long id) {
+        classroomExamAssignmentRepository.deleteByExamSession_Id(id);
         examSessionRepository.delete(findExamSession(id));
     }
 
@@ -518,6 +707,7 @@ public class PortalService {
     public ApiDtos.AttemptDto startAttempt(Long sessionId) {
         User student = getCurrentUser();
         ExamSession session = findExamSession(sessionId);
+        ensureSessionAccess(session);
         if (session.getStatus() != SessionStatus.ACTIVE) {
             throw new BadRequestException("Session is not active");
         }
@@ -670,6 +860,26 @@ public class PortalService {
             .orElseThrow(() -> new NotFoundException("User not found"));
     }
 
+    private Classroom findClassroom(Long id) {
+        return classroomRepository.findById(id)
+            .orElseThrow(() -> new NotFoundException("Classroom not found"));
+    }
+
+    private ClassroomMember findClassroomMember(Long classroomId, Long userId) {
+        return classroomMemberRepository.findByClassroom_IdAndUser_Id(classroomId, userId)
+            .orElseThrow(() -> new NotFoundException("Classroom membership not found"));
+    }
+
+    private ClassroomMember findClassroomMemberById(Long id) {
+        return classroomMemberRepository.findById(id)
+            .orElseThrow(() -> new NotFoundException("Classroom member not found"));
+    }
+
+    private ClassroomExamAssignment findClassroomAssignment(Long id) {
+        return classroomExamAssignmentRepository.findById(id)
+            .orElseThrow(() -> new NotFoundException("Classroom assignment not found"));
+    }
+
     private Subject findSubject(Long id) {
         return subjectRepository.findById(id)
             .orElseThrow(() -> new NotFoundException("Subject not found"));
@@ -752,8 +962,99 @@ public class PortalService {
         return value == null || value.trim().isBlank() ? null : value.trim();
     }
 
+    private String generateJoinCode() {
+        String characters = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+        String candidate = "";
+        do {
+            StringBuilder builder = new StringBuilder();
+            for (int index = 0; index < 8; index++) {
+                int charIndex = (int) (Math.random() * characters.length());
+                builder.append(characters.charAt(charIndex));
+            }
+            candidate = builder.toString();
+        } while (classroomRepository.existsByJoinCodeIgnoreCase(candidate));
+        return candidate;
+    }
+
+    private void ensureClassroomManagementAccess(Classroom classroom) {
+        User currentUser = getCurrentUser();
+        if (currentUser.getRole().getName() == RoleName.ADMIN) {
+            return;
+        }
+        if (currentUser.getRole().getName() != RoleName.INSTRUCTOR || !classroom.getCreatedBy().getId().equals(currentUser.getId())) {
+            throw new NotFoundException("Classroom not found");
+        }
+    }
+
+    private void ensureClassroomReadAccess(Classroom classroom) {
+        User currentUser = getCurrentUser();
+        if (currentUser.getRole().getName() == RoleName.STUDENT) {
+            ClassroomMember member = findClassroomMember(classroom.getId(), currentUser.getId());
+            if (member.getStatus() != ClassroomMemberStatus.APPROVED) {
+                throw new NotFoundException("Classroom not found");
+            }
+            return;
+        }
+        ensureClassroomManagementAccess(classroom);
+    }
+
+    private void ensureSessionAccess(ExamSession session) {
+        User currentUser = getCurrentUser();
+        if (currentUser.getRole().getName() != RoleName.STUDENT) {
+            return;
+        }
+
+        List<Long> approvedClassroomIds = getApprovedClassroomIds(currentUser.getId());
+        if (approvedClassroomIds.isEmpty()
+            || !classroomExamAssignmentRepository.existsByExamSession_IdAndClassroom_IdIn(session.getId(), approvedClassroomIds)) {
+            throw new NotFoundException("Exam session not found");
+        }
+    }
+
+    private List<Long> getApprovedClassroomIds(Long userId) {
+        return classroomMemberRepository.findByUser_IdAndStatusOrderByJoinedAtDesc(userId, ClassroomMemberStatus.APPROVED).stream()
+            .map(member -> member.getClassroom().getId())
+            .distinct()
+            .toList();
+    }
+
     private ApiDtos.UserDto toUserDto(User user) {
         return new ApiDtos.UserDto(user.getId(), user.getFullName(), user.getEmail(), user.getRole().getName(), user.getStatus());
+    }
+
+    private ApiDtos.ClassroomDto toClassroomDto(Classroom classroom, ClassroomMemberStatus membershipStatus) {
+        return new ApiDtos.ClassroomDto(
+            classroom.getId(),
+            classroom.getName(),
+            classroom.getJoinCode(),
+            classroomMemberRepository.countByClassroom_IdAndStatus(classroom.getId(), ClassroomMemberStatus.APPROVED),
+            classroomMemberRepository.countByClassroom_IdAndStatus(classroom.getId(), ClassroomMemberStatus.PENDING),
+            membershipStatus,
+            classroom.getCreatedAt()
+        );
+    }
+
+    private ApiDtos.ClassroomMemberDto toClassroomMemberDto(ClassroomMember member) {
+        return new ApiDtos.ClassroomMemberDto(
+            member.getId(),
+            member.getUser().getId(),
+            member.getUser().getFullName(),
+            member.getUser().getEmail(),
+            member.getStatus(),
+            member.getJoinedAt()
+        );
+    }
+
+    private ApiDtos.ClassroomExamAssignmentDto toClassroomAssignmentDto(ClassroomExamAssignment assignment) {
+        return new ApiDtos.ClassroomExamAssignmentDto(
+            assignment.getId(),
+            assignment.getExamSession().getId(),
+            assignment.getExamSession().getTitle(),
+            assignment.getExamSession().getExam().getTitle(),
+            assignment.getExamSession().getStatus(),
+            assignment.getExamSession().getOpenTime(),
+            assignment.getExamSession().getCloseTime()
+        );
     }
 
     private ApiDtos.QuestionBankDto toQuestionBankDto(QuestionBank questionBank) {
@@ -844,6 +1145,7 @@ public class PortalService {
         List<ExamSession> sessions = examSessionRepository.findByExam_Id(examId);
 
         for (ExamSession session : sessions) {
+            classroomExamAssignmentRepository.deleteByExamSession_Id(session.getId());
             List<Attempt> attempts = attemptRepository.findByExamSession_Id(session.getId());
             if (!attempts.isEmpty()) {
                 List<Long> attemptIds = attempts.stream().map(Attempt::getId).toList();
@@ -909,6 +1211,14 @@ public class PortalService {
     }
 
     private ApiDtos.ExamSessionDto toSessionDto(ExamSession session) {
+        List<String> classroomNames = classroomExamAssignmentRepository.findByExamSession_Id(session.getId()).stream()
+            .map(assignment -> assignment.getClassroom().getName())
+            .distinct()
+            .toList();
+        return toSessionDto(session, classroomNames);
+    }
+
+    private ApiDtos.ExamSessionDto toSessionDto(ExamSession session, List<String> classroomNames) {
         long questionCount = examSessionQuestionRepository.existsByExamSession_Id(session.getId())
             ? examSessionQuestionRepository.countByExamSession_Id(session.getId())
             : examQuestionRepository.countByExam_Id(session.getExam().getId());
@@ -924,7 +1234,8 @@ public class PortalService {
             session.getStatus(),
             (int) questionCount,
             session.isShuffleQuestions(),
-            session.getExam().isShowAnswersAfterSubmit()
+            session.getExam().isShowAnswersAfterSubmit(),
+            classroomNames
         );
     }
 

@@ -9,6 +9,8 @@ GO
 
 IF OBJECT_ID(N'attempt_answers', N'U') IS NOT NULL DROP TABLE attempt_answers;
 IF OBJECT_ID(N'attempts', N'U') IS NOT NULL DROP TABLE attempts;
+IF OBJECT_ID(N'classroom_exam_assignments', N'U') IS NOT NULL DROP TABLE classroom_exam_assignments;
+IF OBJECT_ID(N'classroom_members', N'U') IS NOT NULL DROP TABLE classroom_members;
 IF OBJECT_ID(N'exam_session_question_options', N'U') IS NOT NULL DROP TABLE exam_session_question_options;
 IF OBJECT_ID(N'exam_session_questions', N'U') IS NOT NULL DROP TABLE exam_session_questions;
 IF OBJECT_ID(N'exam_sessions', N'U') IS NOT NULL DROP TABLE exam_sessions;
@@ -17,6 +19,7 @@ IF OBJECT_ID(N'question_options', N'U') IS NOT NULL DROP TABLE question_options;
 IF OBJECT_ID(N'questions', N'U') IS NOT NULL DROP TABLE questions;
 IF OBJECT_ID(N'question_banks', N'U') IS NOT NULL DROP TABLE question_banks;
 IF OBJECT_ID(N'exams', N'U') IS NOT NULL DROP TABLE exams;
+IF OBJECT_ID(N'classrooms', N'U') IS NOT NULL DROP TABLE classrooms;
 IF OBJECT_ID(N'subjects', N'U') IS NOT NULL DROP TABLE subjects;
 IF OBJECT_ID(N'users', N'U') IS NOT NULL DROP TABLE users;
 IF OBJECT_ID(N'roles', N'U') IS NOT NULL DROP TABLE roles;
@@ -117,6 +120,38 @@ CREATE TABLE exam_sessions (
     updated_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
     CONSTRAINT fk_exam_sessions_exam FOREIGN KEY (exam_id) REFERENCES exams(id),
     CONSTRAINT fk_exam_sessions_created_by FOREIGN KEY (created_by) REFERENCES users(id)
+);
+
+CREATE TABLE classrooms (
+    id BIGINT IDENTITY(1,1) PRIMARY KEY,
+    name NVARCHAR(255) NOT NULL,
+    join_code NVARCHAR(32) NOT NULL UNIQUE,
+    created_by BIGINT NULL,
+    created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    updated_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    CONSTRAINT fk_classrooms_created_by FOREIGN KEY (created_by) REFERENCES users(id)
+);
+
+CREATE TABLE classroom_members (
+    id BIGINT IDENTITY(1,1) PRIMARY KEY,
+    classroom_id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL,
+    status NVARCHAR(50) NOT NULL,
+    joined_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    updated_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    CONSTRAINT uq_classroom_members_classroom_user UNIQUE (classroom_id, user_id),
+    CONSTRAINT fk_classroom_members_classroom FOREIGN KEY (classroom_id) REFERENCES classrooms(id),
+    CONSTRAINT fk_classroom_members_user FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+CREATE TABLE classroom_exam_assignments (
+    id BIGINT IDENTITY(1,1) PRIMARY KEY,
+    classroom_id BIGINT NOT NULL,
+    exam_session_id BIGINT NOT NULL,
+    assigned_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    CONSTRAINT uq_classroom_exam_assignments_classroom_session UNIQUE (classroom_id, exam_session_id),
+    CONSTRAINT fk_classroom_exam_assignments_classroom FOREIGN KEY (classroom_id) REFERENCES classrooms(id),
+    CONSTRAINT fk_classroom_exam_assignments_session FOREIGN KEY (exam_session_id) REFERENCES exam_sessions(id)
 );
 
 CREATE TABLE exam_session_questions (

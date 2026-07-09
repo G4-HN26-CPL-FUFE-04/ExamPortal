@@ -11,8 +11,13 @@ public interface ExamQuestionRepository extends JpaRepository<ExamQuestion, Long
     boolean existsByExam_IdAndQuestion_Id(Long examId, Long questionId);
     boolean existsByIdAndExam_Id(Long id, Long examId);
     java.util.Optional<ExamQuestion> findByIdAndExam_Id(Long id, Long examId);
-    void deleteByExam_IdAndQuestion_Id(Long examId, Long questionId);
     long countByExam_Id(Long examId);
+
+    @Modifying
+    long deleteByIdAndExam_Id(Long id, Long examId);
+
+    @Modifying
+    long deleteByExam_IdAndQuestion_Id(Long examId, Long questionId);
 
     @Modifying
     void deleteByQuestion_IdIn(List<Long> questionIds);

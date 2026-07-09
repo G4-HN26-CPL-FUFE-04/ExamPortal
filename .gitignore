@@ -4,3 +4,4 @@ backend/target/
 .idea/
 .vscode/
 *.log
+backend/src/main/resources/application.properties

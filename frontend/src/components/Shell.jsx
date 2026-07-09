@@ -12,11 +12,13 @@ function Shell({ auth, setAuth }) {
     if (role === 'STUDENT') {
       return [
         { label: 'Dashboard', items: [{ to: dashboardPath, label: 'Dashboard' }] },
+        { label: 'Classes', items: [{ to: `${basePath}/classes`, label: 'Classes' }] },
         { label: 'Exams', items: [{ to: `${basePath}/exam-sessions`, label: 'Exam Sessions' }] },
         { label: 'Reports', items: [{ to: `${basePath}/my-attempts`, label: 'My Attempts' }] },
       ]
     }
 
+    const classItems = [{ to: `${basePath}/classes`, label: 'Classes' }]
     const examItems = [
       { to: `${basePath}/exam-sessions`, label: 'Exam Sessions' },
       { to: `${basePath}/drafts`, label: 'Drafts' },
@@ -30,6 +32,7 @@ function Shell({ auth, setAuth }) {
 
     return [
       { label: 'Dashboard', items: [{ to: dashboardPath, label: 'Dashboard' }] },
+      { label: 'Classes', items: classItems },
       { label: 'Exams', items: examItems },
       { label: 'Reports', items: reportItems },
     ]

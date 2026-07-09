@@ -41,12 +41,6 @@ function AuthPage({ mode, setAuth }) {
           Instructors build question banks and exam sessions. Students join scheduled exams,
           answer 4-option multiple-choice questions, and receive automatic scores.
         </p>
-        <div className="auth-callout">
-          <strong>Seed accounts</strong>
-          <span>`admin@examportal.local` / `Admin@123`</span>
-          <span>`instructor@examportal.local` / `Instructor@123`</span>
-          <span>`student@examportal.local` / `Student@123`</span>
-        </div>
       </section>
 
       <section className="auth-panel">

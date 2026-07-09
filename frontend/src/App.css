@@ -483,6 +483,43 @@ td {
   color: var(--danger-text);
 }
 
+.classroom-list {
+  max-height: 40rem;
+  overflow: auto;
+}
+
+.classroom-card {
+  width: 100%;
+  text-align: left;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+
+.classroom-card.active {
+  border-color: rgba(157, 184, 232, 0.95);
+  box-shadow: inset 0 0 0 1px rgba(157, 184, 232, 0.45);
+}
+
+.classroom-code {
+  font-family: 'Courier New', monospace;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+.classroom-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  padding: 0.9rem 0;
+  border-top: 1px solid var(--border-soft);
+}
+
+.classroom-row:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+
 .subject-link-card {
   text-decoration: none;
   color: inherit;

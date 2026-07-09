@@ -4,18 +4,19 @@ import './App.css'
 import Shell from './components/Shell'
 import { api, readStoredAuth, writeStoredAuth } from './lib/appCore'
 import AuthPage from './pages/AuthPage'
-import AdminDashboardPage from './pages/admin/DashboardPage'
 import AdminDraftsPage from './pages/admin/DraftsPage'
 import AdminExamSessionsPage from './pages/admin/ExamSessionsPage'
+import AdminClassroomsPage from './pages/admin/ClassroomsPage'
 import AdminResultsPage from './pages/admin/ResultsPage'
 import AdminStatisticsPage from './pages/admin/StatisticsPage'
 import AdminSubjectQuestionsPage from './pages/admin/SubjectQuestionsPage'
 import AdminSubjectBanksPage from './pages/admin/SubjectBanksPage'
 import AdminSubjectsPage from './pages/admin/SubjectsPage'
 import AdminUsersPage from './pages/admin/UsersPage'
+import EmptyPage from './pages/shared/EmptyPage'
 import ProfilePage from './pages/shared/ProfilePage'
 import StudentAttemptPage from './pages/student/AttemptPage'
-import StudentDashboardPage from './pages/student/DashboardPage'
+import StudentClassroomsPage from './pages/student/ClassroomsPage'
 import StudentExamSessionDetailPage from './pages/student/ExamSessionDetailPage'
 import StudentExamSessionsPage from './pages/student/ExamSessionsPage'
 import StudentMyAttemptsPage from './pages/student/MyAttemptsPage'
@@ -49,7 +50,8 @@ function App() {
         )}
       >
         <Route index element={<RoleHomeRedirect auth={auth} />} />
-        <Route path="student" element={<RoleRoute auth={auth} roles={['STUDENT']}><StudentDashboardPage auth={auth} /></RoleRoute>} />
+        <Route path="student" element={<RoleRoute auth={auth} roles={['STUDENT']}><EmptyPage /></RoleRoute>} />
+        <Route path="student/classes" element={<RoleRoute auth={auth} roles={['STUDENT']}><StudentClassroomsPage /></RoleRoute>} />
         <Route path="student/exam-sessions" element={<RoleRoute auth={auth} roles={['STUDENT']}><StudentExamSessionsPage /></RoleRoute>} />
         <Route path="student/exam-sessions/:id" element={<RoleRoute auth={auth} roles={['STUDENT']}><StudentExamSessionDetailPage /></RoleRoute>} />
         <Route path="student/attempts/:id" element={<RoleRoute auth={auth} roles={['STUDENT']}><StudentAttemptPage /></RoleRoute>} />
@@ -57,7 +59,8 @@ function App() {
         <Route path="student/my-attempts" element={<RoleRoute auth={auth} roles={['STUDENT']}><StudentMyAttemptsPage /></RoleRoute>} />
         <Route path="student/profile" element={<RoleRoute auth={auth} roles={['STUDENT']}><ProfilePage auth={auth} setAuth={setAuth} /></RoleRoute>} />
 
-        <Route path="instructor" element={<RoleRoute auth={auth} roles={['INSTRUCTOR']}><AdminDraftsPage /></RoleRoute>} />
+        <Route path="instructor" element={<RoleRoute auth={auth} roles={['INSTRUCTOR']}><EmptyPage /></RoleRoute>} />
+        <Route path="instructor/classes" element={<RoleRoute auth={auth} roles={['INSTRUCTOR']}><AdminClassroomsPage /></RoleRoute>} />
         <Route path="instructor/drafts" element={<RoleRoute auth={auth} roles={['INSTRUCTOR']}><AdminDraftsPage /></RoleRoute>} />
         <Route path="instructor/subjects" element={<RoleRoute auth={auth} roles={['INSTRUCTOR']}><AdminSubjectsPage /></RoleRoute>} />
         <Route path="instructor/subjects/:subjectSlug" element={<RoleRoute auth={auth} roles={['INSTRUCTOR']}><AdminSubjectBanksPage /></RoleRoute>} />
@@ -66,8 +69,12 @@ function App() {
         <Route path="instructor/results" element={<RoleRoute auth={auth} roles={['INSTRUCTOR']}><AdminResultsPage /></RoleRoute>} />
         <Route path="instructor/profile" element={<RoleRoute auth={auth} roles={['INSTRUCTOR']}><ProfilePage auth={auth} setAuth={setAuth} /></RoleRoute>} />
 
-        <Route path="admin" element={<RoleRoute auth={auth} roles={['ADMIN']}><AdminDashboardPage /></RoleRoute>} />
+        <Route path="admin" element={<RoleRoute auth={auth} roles={['ADMIN']}><EmptyPage /></RoleRoute>} />
         <Route path="admin/profile" element={<RoleRoute auth={auth} roles={['ADMIN']}><ProfilePage auth={auth} setAuth={setAuth} /></RoleRoute>} />
+        <Route
+          path="admin/classes"
+          element={<RoleRoute auth={auth} roles={['ADMIN']}><AdminClassroomsPage /></RoleRoute>}
+        />
         <Route
           path="admin/users"
           element={<RoleRoute auth={auth} roles={['ADMIN']}><AdminUsersPage /></RoleRoute>}

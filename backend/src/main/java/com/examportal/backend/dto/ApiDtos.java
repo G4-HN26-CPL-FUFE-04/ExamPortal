@@ -1,6 +1,7 @@
 package com.examportal.backend.dto;
 
 import com.examportal.backend.entity.enums.AttemptStatus;
+import com.examportal.backend.entity.enums.ClassroomMemberStatus;
 import com.examportal.backend.entity.enums.RoleName;
 import com.examportal.backend.entity.enums.SessionStatus;
 import com.examportal.backend.entity.enums.UserStatus;
@@ -111,6 +112,27 @@ public final class ApiDtos {
     public record SubjectDto(Long id, String name, long questionBankCount, long totalQuestionCount) {
     }
 
+    public record ClassroomPayload(@NotBlank String name) {
+    }
+
+    public record ClassroomJoinPayload(@NotBlank String joinCode) {
+    }
+
+    public record ClassroomDto(Long id, String name, String joinCode, long approvedStudentCount, long pendingStudentCount,
+                               ClassroomMemberStatus membershipStatus, LocalDateTime createdAt) {
+    }
+
+    public record ClassroomMemberDto(Long id, Long userId, String fullName, String email, ClassroomMemberStatus status,
+                                     LocalDateTime joinedAt) {
+    }
+
+    public record ClassroomExamAssignmentPayload(@NotNull Long examSessionId) {
+    }
+
+    public record ClassroomExamAssignmentDto(Long id, Long examSessionId, String examSessionTitle, String examTitle,
+                                             SessionStatus status, LocalDateTime openTime, LocalDateTime closeTime) {
+    }
+
     public record QuestionBankPayload(@NotBlank String name, String description, @NotNull Long subjectId) {
     }
 
@@ -152,7 +174,8 @@ public final class ApiDtos {
 
     public record ExamSessionDto(Long id, Long examId, String examTitle, String title, LocalDateTime openTime,
                                  LocalDateTime closeTime, int durationMinutes, int maxAttempts, SessionStatus status,
-                                 int questionCount, boolean shuffleQuestions, boolean showAnswersAfterSubmit) {
+                                 int questionCount, boolean shuffleQuestions, boolean showAnswersAfterSubmit,
+                                 List<String> classroomNames) {
     }
 
     public record AttemptAnswerPayload(@NotNull Long questionId, Long selectedOptionId) {
