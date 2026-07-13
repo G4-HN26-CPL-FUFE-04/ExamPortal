@@ -34,47 +34,47 @@ public class DraftController {
         return ResponseEntity.ok(portalService.getDraft(id));
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','INSTRUCTOR')")
+    @PreAuthorize("hasRole('TEACHER')")
     @PostMapping
     public ResponseEntity<ApiDtos.ExamDto> createDraft(@Valid @RequestBody ApiDtos.ExamPayload payload) {
         return ResponseEntity.ok(portalService.saveDraft(payload, null));
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','INSTRUCTOR')")
+    @PreAuthorize("hasRole('TEACHER')")
     @PutMapping("/{id}")
     public ResponseEntity<ApiDtos.ExamDto> updateDraft(@PathVariable Long id, @Valid @RequestBody ApiDtos.ExamPayload payload) {
         return ResponseEntity.ok(portalService.saveDraft(payload, id));
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','INSTRUCTOR')")
+    @PreAuthorize("hasRole('TEACHER')")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteDraft(@PathVariable Long id) {
         portalService.deleteExam(id);
         return ResponseEntity.noContent().build();
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','INSTRUCTOR')")
+    @PreAuthorize("hasRole('TEACHER')")
     @PostMapping("/{id}/questions")
     public ResponseEntity<ApiDtos.ExamDto> addQuestion(@PathVariable Long id,
                                                        @Valid @RequestBody ApiDtos.ExamQuestionPayload payload) {
         return ResponseEntity.ok(portalService.addQuestionToExam(id, payload));
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','INSTRUCTOR')")
+    @PreAuthorize("hasRole('TEACHER')")
     @PostMapping("/{id}/questions/bulk")
     public ResponseEntity<ApiDtos.ExamDto> addQuestions(@PathVariable Long id,
                                                         @Valid @RequestBody ApiDtos.ExamBulkQuestionPayload payload) {
         return ResponseEntity.ok(portalService.addQuestionsToExam(id, payload));
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','INSTRUCTOR')")
+    @PreAuthorize("hasRole('TEACHER')")
     @DeleteMapping("/{id}/questions/{questionId}")
     public ResponseEntity<Void> removeQuestion(@PathVariable Long id, @PathVariable Long questionId) {
         portalService.removeQuestionFromExam(id, questionId);
         return ResponseEntity.noContent().build();
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','INSTRUCTOR')")
+    @PreAuthorize("hasRole('TEACHER')")
     @PutMapping("/{id}/questions/reorder")
     public ResponseEntity<ApiDtos.ExamDto> reorderQuestions(@PathVariable Long id,
                                                             @Valid @RequestBody ApiDtos.ExamQuestionReorderPayload payload) {

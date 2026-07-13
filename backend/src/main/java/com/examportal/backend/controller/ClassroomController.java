@@ -25,37 +25,39 @@ public class ClassroomController {
         this.portalService = portalService;
     }
 
+    @PreAuthorize("hasAnyRole('TEACHER','STUDENT')")
     @GetMapping
     public ResponseEntity<List<ApiDtos.ClassroomDto>> getClassrooms() {
         return ResponseEntity.ok(portalService.getClassrooms());
     }
 
+    @PreAuthorize("hasAnyRole('TEACHER','STUDENT')")
     @GetMapping("/{id}")
     public ResponseEntity<ApiDtos.ClassroomDto> getClassroom(@PathVariable Long id) {
         return ResponseEntity.ok(portalService.getClassroom(id));
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','INSTRUCTOR')")
+    @PreAuthorize("hasRole('TEACHER')")
     @PostMapping
     public ResponseEntity<ApiDtos.ClassroomDto> createClassroom(@Valid @RequestBody ApiDtos.ClassroomPayload payload) {
         return ResponseEntity.ok(portalService.saveClassroom(payload, null));
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','INSTRUCTOR')")
+    @PreAuthorize("hasRole('TEACHER')")
     @PutMapping("/{id}")
     public ResponseEntity<ApiDtos.ClassroomDto> updateClassroom(@PathVariable Long id,
                                                                 @Valid @RequestBody ApiDtos.ClassroomPayload payload) {
         return ResponseEntity.ok(portalService.saveClassroom(payload, id));
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','INSTRUCTOR')")
+    @PreAuthorize("hasRole('TEACHER')")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteClassroom(@PathVariable Long id) {
         portalService.deleteClassroom(id);
         return ResponseEntity.noContent().build();
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','INSTRUCTOR')")
+    @PreAuthorize("hasRole('TEACHER')")
     @PostMapping("/{id}/join-code")
     public ResponseEntity<ApiDtos.ClassroomDto> regenerateJoinCode(@PathVariable Long id) {
         return ResponseEntity.ok(portalService.regenerateClassroomJoinCode(id));
@@ -67,20 +69,20 @@ public class ClassroomController {
         return ResponseEntity.ok(portalService.joinClassroom(payload));
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','INSTRUCTOR')")
+    @PreAuthorize("hasRole('TEACHER')")
     @GetMapping("/{id}/members")
     public ResponseEntity<List<ApiDtos.ClassroomMemberDto>> getClassroomMembers(@PathVariable Long id) {
         return ResponseEntity.ok(portalService.getClassroomMembers(id));
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','INSTRUCTOR')")
+    @PreAuthorize("hasRole('TEACHER')")
     @PatchMapping("/{classroomId}/members/{memberId}/approve")
     public ResponseEntity<ApiDtos.ClassroomMemberDto> approveMember(@PathVariable Long classroomId,
                                                                     @PathVariable Long memberId) {
         return ResponseEntity.ok(portalService.approveClassroomMember(classroomId, memberId));
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','INSTRUCTOR')")
+    @PreAuthorize("hasRole('TEACHER')")
     @DeleteMapping("/{classroomId}/members/{memberId}")
     public ResponseEntity<Void> removeMember(@PathVariable Long classroomId, @PathVariable Long memberId) {
         portalService.removeClassroomMember(classroomId, memberId);
@@ -94,12 +96,13 @@ public class ClassroomController {
         return ResponseEntity.noContent().build();
     }
 
+    @PreAuthorize("hasAnyRole('TEACHER','STUDENT')")
     @GetMapping("/{id}/exam-assignments")
     public ResponseEntity<List<ApiDtos.ClassroomExamAssignmentDto>> getAssignments(@PathVariable Long id) {
         return ResponseEntity.ok(portalService.getClassroomAssignments(id));
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','INSTRUCTOR')")
+    @PreAuthorize("hasRole('TEACHER')")
     @PostMapping("/{id}/exam-assignments")
     public ResponseEntity<ApiDtos.ClassroomExamAssignmentDto> assignExamSession(
         @PathVariable Long id,
@@ -108,7 +111,7 @@ public class ClassroomController {
         return ResponseEntity.ok(portalService.assignExamSessionToClassroom(id, payload));
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','INSTRUCTOR')")
+    @PreAuthorize("hasRole('TEACHER')")
     @DeleteMapping("/{classroomId}/exam-assignments/{assignmentId}")
     public ResponseEntity<Void> removeAssignment(@PathVariable Long classroomId, @PathVariable Long assignmentId) {
         portalService.removeClassroomAssignment(classroomId, assignmentId);

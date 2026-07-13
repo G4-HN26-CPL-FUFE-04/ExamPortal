@@ -7,6 +7,18 @@ export const api = axios.create({ baseURL: API_BASE_URL })
 export const authStorageKey = 'examportal-auth'
 export const emptyAuth = { token: '', user: null }
 
+export function normalizeRole(role) {
+  return role === 'INSTRUCTOR' ? 'TEACHER' : role
+}
+
+export function normalizeAuth(auth) {
+  if (!auth?.user) return auth
+  return {
+    ...auth,
+    user: { ...auth.user, role: normalizeRole(auth.user.role) },
+  }
+}
+
 function canUseStorage() {
   try {
     return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined'
@@ -24,10 +36,10 @@ export function readStoredAuth() {
 
     const parsed = JSON.parse(saved)
     if (!parsed || typeof parsed !== 'object') return emptyAuth
-    return {
+    return normalizeAuth({
       token: typeof parsed.token === 'string' ? parsed.token : '',
       user: parsed.user && typeof parsed.user === 'object' ? parsed.user : null,
-    }
+    })
   } catch {
     try {
       window.localStorage.removeItem(authStorageKey)

@@ -30,8 +30,9 @@ public class UserController {
     @PreAuthorize("hasRole('ADMIN')")
     @GetMapping
     public ResponseEntity<List<ApiDtos.UserDto>> getUsers(@RequestParam(required = false) String keyword,
-                                                          @RequestParam(required = false) UserStatus status) {
-        return ResponseEntity.ok(portalService.getUsers(keyword, status));
+                                                          @RequestParam(required = false) UserStatus status,
+                                                          @RequestParam(required = false) RoleName role) {
+        return ResponseEntity.ok(portalService.getUsers(keyword, status, role));
     }
 
     @PreAuthorize("hasRole('ADMIN')")

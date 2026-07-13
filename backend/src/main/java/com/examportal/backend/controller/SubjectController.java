@@ -24,25 +24,26 @@ public class SubjectController {
         this.portalService = portalService;
     }
 
+    @PreAuthorize("hasRole('TEACHER')")
     @GetMapping
     public ResponseEntity<List<ApiDtos.SubjectDto>> getSubjects() {
         return ResponseEntity.ok(portalService.getSubjects());
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','INSTRUCTOR')")
+    @PreAuthorize("hasRole('TEACHER')")
     @PostMapping
     public ResponseEntity<ApiDtos.SubjectDto> createSubject(@Valid @RequestBody ApiDtos.SubjectPayload payload) {
         return ResponseEntity.ok(portalService.saveSubject(payload, null));
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','INSTRUCTOR')")
+    @PreAuthorize("hasRole('TEACHER')")
     @PutMapping("/{id}")
     public ResponseEntity<ApiDtos.SubjectDto> updateSubject(@PathVariable Long id,
                                                             @Valid @RequestBody ApiDtos.SubjectPayload payload) {
         return ResponseEntity.ok(portalService.saveSubject(payload, id));
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','INSTRUCTOR')")
+    @PreAuthorize("hasRole('TEACHER')")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteSubject(@PathVariable Long id) {
         portalService.deleteSubject(id);

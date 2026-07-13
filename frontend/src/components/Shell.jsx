@@ -5,7 +5,7 @@ import { emptyAuth } from '../lib/appCore'
 function Shell({ auth, setAuth }) {
   const navigate = useNavigate()
   const role = auth.user.role
-  const basePath = role === 'ADMIN' ? '/admin' : role === 'INSTRUCTOR' ? '/instructor' : '/student'
+  const basePath = role === 'ADMIN' ? '/admin' : role === 'TEACHER' ? '/teacher' : '/student'
   const dashboardPath = basePath
 
   const navGroups = useMemo(() => {
@@ -18,6 +18,10 @@ function Shell({ auth, setAuth }) {
       ]
     }
 
+    if (role === 'ADMIN') {
+      return [{ label: 'Dashboard', items: [{ to: dashboardPath, label: 'Dashboard' }] }]
+    }
+
     const classItems = [{ to: `${basePath}/classes`, label: 'Classes' }]
     const examItems = [
       { to: `${basePath}/exam-sessions`, label: 'Exam Sessions' },
@@ -25,10 +29,10 @@ function Shell({ auth, setAuth }) {
       { to: `${basePath}/subjects`, label: 'Subjects' },
     ]
 
-    const reportItems = [{ to: `${basePath}/results`, label: 'Results' }]
-    if (role === 'ADMIN') {
-      reportItems.push({ to: '/admin/statistics', label: 'Statistics' })
-    }
+    const reportItems = [
+      { to: `${basePath}/results`, label: 'Results' },
+      { to: `${basePath}/statistics`, label: 'Statistics' },
+    ]
 
     return [
       { label: 'Dashboard', items: [{ to: dashboardPath, label: 'Dashboard' }] },

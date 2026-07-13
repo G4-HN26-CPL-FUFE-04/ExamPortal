@@ -25,12 +25,13 @@ public class QuestionBankController {
         this.portalService = portalService;
     }
 
+    @PreAuthorize("hasRole('TEACHER')")
     @GetMapping
     public ResponseEntity<List<ApiDtos.QuestionBankDto>> getQuestionBanks(@RequestParam Long subjectId) {
         return ResponseEntity.ok(portalService.getQuestionBanks(subjectId));
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','INSTRUCTOR')")
+    @PreAuthorize("hasRole('TEACHER')")
     @PostMapping
     public ResponseEntity<ApiDtos.QuestionBankDto> createQuestionBank(
         @Valid @RequestBody ApiDtos.QuestionBankPayload payload
@@ -38,7 +39,7 @@ public class QuestionBankController {
         return ResponseEntity.ok(portalService.saveQuestionBank(payload, null));
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','INSTRUCTOR')")
+    @PreAuthorize("hasRole('TEACHER')")
     @PutMapping("/{id}")
     public ResponseEntity<ApiDtos.QuestionBankDto> updateQuestionBank(
         @PathVariable Long id,
@@ -47,7 +48,7 @@ public class QuestionBankController {
         return ResponseEntity.ok(portalService.saveQuestionBank(payload, id));
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','INSTRUCTOR')")
+    @PreAuthorize("hasRole('TEACHER')")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteQuestionBank(@PathVariable Long id) {
         portalService.deleteQuestionBank(id);

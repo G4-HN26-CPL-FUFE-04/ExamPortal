@@ -4,6 +4,7 @@ import com.examportal.backend.dto.ApiDtos;
 import com.examportal.backend.service.PortalService;
 import java.util.List;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -17,6 +18,7 @@ public class ExamController {
         this.portalService = portalService;
     }
 
+    @PreAuthorize("hasRole('TEACHER')")
     @GetMapping
     public ResponseEntity<List<ApiDtos.ExamDto>> getExams() {
         return ResponseEntity.ok(portalService.getDrafts());

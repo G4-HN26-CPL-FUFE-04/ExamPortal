@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { api } from '../lib/appCore'
+import { api, normalizeAuth } from '../lib/appCore'
 
 function getDefaultRouteForRole(role) {
   if (role === 'ADMIN') return '/admin'
-  if (role === 'INSTRUCTOR') return '/instructor'
+  if (role === 'TEACHER') return '/teacher'
   return '/student'
 }
 
@@ -23,8 +23,9 @@ function AuthPage({ mode, setAuth }) {
       const endpoint = isLogin ? '/auth/login' : '/auth/register'
       const payload = isLogin ? { email: form.email, password: form.password } : form
       const { data } = await api.post(endpoint, payload)
-      setAuth(data)
-      navigate(getDefaultRouteForRole(data.user.role))
+      const normalizedAuth = normalizeAuth(data)
+      setAuth(normalizedAuth)
+      navigate(getDefaultRouteForRole(normalizedAuth.user.role))
     } catch (requestError) {
       setError(requestError.response?.data?.message || 'Unable to authenticate.')
     } finally {

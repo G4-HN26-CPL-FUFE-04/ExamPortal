@@ -2,12 +2,12 @@ import { InfoGrid, PageSection } from '../../components/CommonUI'
 
 export default function DashboardPage() {
   return (
-    <PageSection title="Admin Area" description="Management entry point for questions, exams, sessions, attempts, and statistics.">
+    <PageSection title="Admin Area" description="Manage platform accounts and access roles.">
       <InfoGrid
         items={[
           ['User management', 'Search, assign roles, lock or unlock accounts'],
-          ['Content management', 'Subjects, question bank, exams, sessions'],
-          ['Monitoring', 'Attempts, result review, and basic dashboard statistics'],
+          ['Role management', 'Assign Admin, Teacher, or Student access'],
+          ['Account security', 'Lock or unlock access without deleting learning records'],
         ]}
       />
     </PageSection>

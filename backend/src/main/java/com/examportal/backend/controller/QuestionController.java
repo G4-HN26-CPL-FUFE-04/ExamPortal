@@ -25,6 +25,7 @@ public class QuestionController {
         this.portalService = portalService;
     }
 
+    @PreAuthorize("hasRole('TEACHER')")
     @GetMapping
     public ResponseEntity<List<ApiDtos.QuestionSummaryDto>> getQuestions(@RequestParam(required = false) String keyword,
                                                                          @RequestParam(required = false) Long subjectId,
@@ -32,25 +33,26 @@ public class QuestionController {
         return ResponseEntity.ok(portalService.getQuestions(keyword, subjectId, questionBankId));
     }
 
+    @PreAuthorize("hasRole('TEACHER')")
     @GetMapping("/{id:\\d+}")
     public ResponseEntity<ApiDtos.QuestionDetailDto> getQuestion(@PathVariable Long id) {
         return ResponseEntity.ok(portalService.getQuestion(id));
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','INSTRUCTOR')")
+    @PreAuthorize("hasRole('TEACHER')")
     @PostMapping
     public ResponseEntity<ApiDtos.QuestionDetailDto> createQuestion(@Valid @RequestBody ApiDtos.QuestionPayload payload) {
         return ResponseEntity.ok(portalService.saveQuestion(payload, null));
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','INSTRUCTOR')")
+    @PreAuthorize("hasRole('TEACHER')")
     @PutMapping("/{id:\\d+}")
     public ResponseEntity<ApiDtos.QuestionDetailDto> updateQuestion(@PathVariable Long id,
                                                                     @Valid @RequestBody ApiDtos.QuestionPayload payload) {
         return ResponseEntity.ok(portalService.saveQuestion(payload, id));
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','INSTRUCTOR')")
+    @PreAuthorize("hasRole('TEACHER')")
     @DeleteMapping("/{id:\\d+}")
     public ResponseEntity<Void> deleteQuestion(@PathVariable Long id) {
         portalService.deleteQuestion(id);

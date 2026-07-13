@@ -20,10 +20,10 @@ export default function StatisticsPage() {
   }, [])
 
   return (
-    <PageSection title="Statistics" description="Basic system reporting for the first version MVP.">
+    <PageSection title="Statistics" description="Reporting for your classes and learning content.">
       <StatsCards
         stats={[
-          ['Users', overview?.totalUsers ?? 0],
+          ['Students', overview?.totalStudents ?? 0],
           ['Attempts', overview?.totalAttempts ?? 0],
           ['Total questions', questionStats?.totalQuestions ?? 0],
           ['Subjects', questionStats?.totalSubjects ?? 0],

@@ -39,6 +39,7 @@ public class AttemptController {
         return ResponseEntity.ok(portalService.submitAttempt(id, request));
     }
 
+    @PreAuthorize("hasAnyRole('TEACHER','STUDENT')")
     @GetMapping("/attempts/{id}")
     public ResponseEntity<ApiDtos.AttemptDto> getAttempt(@PathVariable Long id) {
         return ResponseEntity.ok(portalService.getAttempt(id));

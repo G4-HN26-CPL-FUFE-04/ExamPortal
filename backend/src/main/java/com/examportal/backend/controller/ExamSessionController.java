@@ -27,43 +27,45 @@ public class ExamSessionController {
         this.portalService = portalService;
     }
 
+    @PreAuthorize("hasAnyRole('TEACHER','STUDENT')")
     @GetMapping
     public ResponseEntity<List<ApiDtos.ExamSessionDto>> getExamSessions() {
         return ResponseEntity.ok(portalService.getExamSessions());
     }
 
+    @PreAuthorize("hasAnyRole('TEACHER','STUDENT')")
     @GetMapping("/{id}")
     public ResponseEntity<ApiDtos.ExamSessionDto> getExamSession(@PathVariable Long id) {
         return ResponseEntity.ok(portalService.getExamSession(id));
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','INSTRUCTOR')")
+    @PreAuthorize("hasRole('TEACHER')")
     @PostMapping
     public ResponseEntity<ApiDtos.ExamSessionDto> createSession(@Valid @RequestBody ApiDtos.ExamSessionPayload payload) {
         return ResponseEntity.ok(portalService.saveExamSession(payload, null));
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','INSTRUCTOR')")
+    @PreAuthorize("hasRole('TEACHER')")
     @PutMapping("/{id}")
     public ResponseEntity<ApiDtos.ExamSessionDto> updateSession(@PathVariable Long id,
                                                                 @Valid @RequestBody ApiDtos.ExamSessionPayload payload) {
         return ResponseEntity.ok(portalService.saveExamSession(payload, id));
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','INSTRUCTOR')")
+    @PreAuthorize("hasRole('TEACHER')")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteSession(@PathVariable Long id) {
         portalService.deleteExamSession(id);
         return ResponseEntity.noContent().build();
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','INSTRUCTOR')")
+    @PreAuthorize("hasRole('TEACHER')")
     @PatchMapping("/{id}/status")
     public ResponseEntity<ApiDtos.ExamSessionDto> updateStatus(@PathVariable Long id, @RequestParam SessionStatus status) {
         return ResponseEntity.ok(portalService.updateExamSessionStatus(id, status));
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','INSTRUCTOR')")
+    @PreAuthorize("hasRole('TEACHER')")
     @GetMapping("/{id}/attempts")
     public ResponseEntity<List<ApiDtos.AttemptDto>> getAttempts(@PathVariable Long id) {
         return ResponseEntity.ok(portalService.getAttemptsBySession(id));

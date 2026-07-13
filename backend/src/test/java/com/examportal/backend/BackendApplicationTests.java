@@ -2,6 +2,7 @@ package com.examportal.backend;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.examportal.backend.dto.ApiDtos;
 import com.examportal.backend.entity.Question;
@@ -11,6 +12,7 @@ import com.examportal.backend.entity.Subject;
 import com.examportal.backend.entity.User;
 import com.examportal.backend.entity.enums.RoleName;
 import com.examportal.backend.entity.enums.UserStatus;
+import com.examportal.backend.exception.NotFoundException;
 import com.examportal.backend.repository.QuestionBankRepository;
 import com.examportal.backend.repository.QuestionRepository;
 import com.examportal.backend.repository.RoleRepository;
@@ -51,7 +53,7 @@ class BackendApplicationTests {
 
 	@Test
 	void removeQuestionFromDraftRemovesSelectedExamQuestion() {
-		Role instructorRole = roleRepository.findByName(RoleName.INSTRUCTOR).orElseGet(() -> roleRepository.save(new Role(RoleName.INSTRUCTOR)));
+		Role instructorRole = roleRepository.findByName(RoleName.TEACHER).orElseGet(() -> roleRepository.save(new Role(RoleName.TEACHER)));
 
 		User instructor = new User();
 		instructor.setFullName("Instructor");
@@ -100,6 +102,19 @@ class BackendApplicationTests {
 		ApiDtos.ExamDto refreshedDraft = portalService.getDraft(exam.id());
 		assertEquals(0, refreshedDraft.questions().size());
 		assertFalse(refreshedDraft.questions().stream().anyMatch(item -> item.id().equals(examQuestionId)));
+
+		User otherTeacher = new User();
+		otherTeacher.setFullName("Other Teacher");
+		otherTeacher.setEmail("other-teacher@test.local");
+		otherTeacher.setPasswordHash("hashed");
+		otherTeacher.setRole(instructorRole);
+		otherTeacher.setStatus(UserStatus.ACTIVE);
+		userRepository.save(otherTeacher);
+		SecurityContextHolder.getContext().setAuthentication(
+			new UsernamePasswordAuthenticationToken(otherTeacher.getEmail(), null)
+		);
+
+		assertThrows(NotFoundException.class, () -> portalService.getDraft(exam.id()));
 	}
 
 }

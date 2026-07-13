@@ -5,6 +5,7 @@ import Shell from './components/Shell'
 import { api, readStoredAuth, writeStoredAuth } from './lib/appCore'
 import AuthPage from './pages/AuthPage'
 import AdminDraftsPage from './pages/admin/DraftsPage'
+import AdminDashboardPage from './pages/admin/DashboardPage'
 import AdminExamSessionsPage from './pages/admin/ExamSessionsPage'
 import AdminClassroomsPage from './pages/admin/ClassroomsPage'
 import AdminResultsPage from './pages/admin/ResultsPage'
@@ -13,9 +14,10 @@ import AdminSubjectQuestionsPage from './pages/admin/SubjectQuestionsPage'
 import AdminSubjectBanksPage from './pages/admin/SubjectBanksPage'
 import AdminSubjectsPage from './pages/admin/SubjectsPage'
 import AdminUsersPage from './pages/admin/UsersPage'
-import EmptyPage from './pages/shared/EmptyPage'
 import ProfilePage from './pages/shared/ProfilePage'
 import StudentAttemptPage from './pages/student/AttemptPage'
+import StudentDashboardPage from './pages/student/DashboardPage'
+import TeacherDashboardPage from './pages/teacher/DashboardPage'
 import StudentClassroomsPage from './pages/student/ClassroomsPage'
 import StudentExamSessionDetailPage from './pages/student/ExamSessionDetailPage'
 import StudentExamSessionsPage from './pages/student/ExamSessionsPage'
@@ -50,7 +52,7 @@ function App() {
         )}
       >
         <Route index element={<RoleHomeRedirect auth={auth} />} />
-        <Route path="student" element={<RoleRoute auth={auth} roles={['STUDENT']}><EmptyPage /></RoleRoute>} />
+        <Route path="student" element={<RoleRoute auth={auth} roles={['STUDENT']}><StudentDashboardPage auth={auth} /></RoleRoute>} />
         <Route path="student/classes" element={<RoleRoute auth={auth} roles={['STUDENT']}><StudentClassroomsPage /></RoleRoute>} />
         <Route path="student/exam-sessions" element={<RoleRoute auth={auth} roles={['STUDENT']}><StudentExamSessionsPage /></RoleRoute>} />
         <Route path="student/exam-sessions/:id" element={<RoleRoute auth={auth} roles={['STUDENT']}><StudentExamSessionDetailPage /></RoleRoute>} />
@@ -59,53 +61,22 @@ function App() {
         <Route path="student/my-attempts" element={<RoleRoute auth={auth} roles={['STUDENT']}><StudentMyAttemptsPage /></RoleRoute>} />
         <Route path="student/profile" element={<RoleRoute auth={auth} roles={['STUDENT']}><ProfilePage auth={auth} setAuth={setAuth} /></RoleRoute>} />
 
-        <Route path="instructor" element={<RoleRoute auth={auth} roles={['INSTRUCTOR']}><EmptyPage /></RoleRoute>} />
-        <Route path="instructor/classes" element={<RoleRoute auth={auth} roles={['INSTRUCTOR']}><AdminClassroomsPage /></RoleRoute>} />
-        <Route path="instructor/drafts" element={<RoleRoute auth={auth} roles={['INSTRUCTOR']}><AdminDraftsPage /></RoleRoute>} />
-        <Route path="instructor/subjects" element={<RoleRoute auth={auth} roles={['INSTRUCTOR']}><AdminSubjectsPage /></RoleRoute>} />
-        <Route path="instructor/subjects/:subjectSlug" element={<RoleRoute auth={auth} roles={['INSTRUCTOR']}><AdminSubjectBanksPage /></RoleRoute>} />
-        <Route path="instructor/subjects/:subjectSlug/:bankSlug" element={<RoleRoute auth={auth} roles={['INSTRUCTOR']}><AdminSubjectQuestionsPage /></RoleRoute>} />
-        <Route path="instructor/exam-sessions" element={<RoleRoute auth={auth} roles={['INSTRUCTOR']}><AdminExamSessionsPage /></RoleRoute>} />
-        <Route path="instructor/results" element={<RoleRoute auth={auth} roles={['INSTRUCTOR']}><AdminResultsPage /></RoleRoute>} />
-        <Route path="instructor/profile" element={<RoleRoute auth={auth} roles={['INSTRUCTOR']}><ProfilePage auth={auth} setAuth={setAuth} /></RoleRoute>} />
+        <Route path="teacher" element={<RoleRoute auth={auth} roles={['TEACHER']}><TeacherDashboardPage /></RoleRoute>} />
+        <Route path="teacher/classes" element={<RoleRoute auth={auth} roles={['TEACHER']}><AdminClassroomsPage /></RoleRoute>} />
+        <Route path="teacher/drafts" element={<RoleRoute auth={auth} roles={['TEACHER']}><AdminDraftsPage /></RoleRoute>} />
+        <Route path="teacher/subjects" element={<RoleRoute auth={auth} roles={['TEACHER']}><AdminSubjectsPage /></RoleRoute>} />
+        <Route path="teacher/subjects/:subjectSlug" element={<RoleRoute auth={auth} roles={['TEACHER']}><AdminSubjectBanksPage /></RoleRoute>} />
+        <Route path="teacher/subjects/:subjectSlug/:bankSlug" element={<RoleRoute auth={auth} roles={['TEACHER']}><AdminSubjectQuestionsPage /></RoleRoute>} />
+        <Route path="teacher/exam-sessions" element={<RoleRoute auth={auth} roles={['TEACHER']}><AdminExamSessionsPage /></RoleRoute>} />
+        <Route path="teacher/results" element={<RoleRoute auth={auth} roles={['TEACHER']}><AdminResultsPage /></RoleRoute>} />
+        <Route path="teacher/statistics" element={<RoleRoute auth={auth} roles={['TEACHER']}><AdminStatisticsPage /></RoleRoute>} />
+        <Route path="teacher/profile" element={<RoleRoute auth={auth} roles={['TEACHER']}><ProfilePage auth={auth} setAuth={setAuth} /></RoleRoute>} />
 
-        <Route path="admin" element={<RoleRoute auth={auth} roles={['ADMIN']}><EmptyPage /></RoleRoute>} />
+        <Route path="admin" element={<RoleRoute auth={auth} roles={['ADMIN']}><AdminDashboardPage /></RoleRoute>} />
         <Route path="admin/profile" element={<RoleRoute auth={auth} roles={['ADMIN']}><ProfilePage auth={auth} setAuth={setAuth} /></RoleRoute>} />
-        <Route
-          path="admin/classes"
-          element={<RoleRoute auth={auth} roles={['ADMIN']}><AdminClassroomsPage /></RoleRoute>}
-        />
         <Route
           path="admin/users"
           element={<RoleRoute auth={auth} roles={['ADMIN']}><AdminUsersPage /></RoleRoute>}
-        />
-        <Route
-          path="admin/subjects"
-          element={<RoleRoute auth={auth} roles={['ADMIN']}><AdminSubjectsPage /></RoleRoute>}
-        />
-        <Route
-          path="admin/subjects/:subjectSlug"
-          element={<RoleRoute auth={auth} roles={['ADMIN']}><AdminSubjectBanksPage /></RoleRoute>}
-        />
-        <Route
-          path="admin/subjects/:subjectSlug/:bankSlug"
-          element={<RoleRoute auth={auth} roles={['ADMIN']}><AdminSubjectQuestionsPage /></RoleRoute>}
-        />
-        <Route
-          path="admin/drafts"
-          element={<RoleRoute auth={auth} roles={['ADMIN']}><AdminDraftsPage /></RoleRoute>}
-        />
-        <Route
-          path="admin/exam-sessions"
-          element={<RoleRoute auth={auth} roles={['ADMIN']}><AdminExamSessionsPage /></RoleRoute>}
-        />
-        <Route
-          path="admin/results"
-          element={<RoleRoute auth={auth} roles={['ADMIN', 'INSTRUCTOR']}><AdminResultsPage /></RoleRoute>}
-        />
-        <Route
-          path="admin/statistics"
-          element={<RoleRoute auth={auth} roles={['ADMIN']}><AdminStatisticsPage /></RoleRoute>}
         />
 
         <Route path="dashboard" element={<RoleHomeRedirect auth={auth} />} />
@@ -153,31 +124,28 @@ function LegacyQuestionsRedirect({ auth }) {
 
 function getHomeRouteForRole(role) {
   if (role === 'ADMIN') return '/admin'
-  if (role === 'INSTRUCTOR') return '/instructor'
+  if (role === 'TEACHER') return '/teacher'
   return '/student'
 }
 
 function getProfileRouteForRole(role) {
   if (role === 'ADMIN') return '/admin/profile'
-  if (role === 'INSTRUCTOR') return '/instructor/profile'
+  if (role === 'TEACHER') return '/teacher/profile'
   return '/student/profile'
 }
 
 function getExamSessionsRouteForRole(role) {
-  if (role === 'ADMIN') return '/admin/exam-sessions'
-  if (role === 'INSTRUCTOR') return '/instructor/exam-sessions'
+  if (role === 'TEACHER') return '/teacher/exam-sessions'
   return '/student/exam-sessions'
 }
 
 function getDraftsRouteForRole(role) {
-  if (role === 'ADMIN') return '/admin/drafts'
-  if (role === 'INSTRUCTOR') return '/instructor/drafts'
+  if (role === 'TEACHER') return '/teacher/drafts'
   return '/student'
 }
 
 function getSubjectsRouteForRole(role) {
-  if (role === 'ADMIN') return '/admin/subjects'
-  if (role === 'INSTRUCTOR') return '/instructor/subjects'
+  if (role === 'TEACHER') return '/teacher/subjects'
   return '/student'
 }
 

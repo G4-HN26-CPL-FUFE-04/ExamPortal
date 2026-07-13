@@ -4,7 +4,7 @@ import { PageSection } from '../../components/CommonUI'
 import { api, toSubjectSlug } from '../../lib/appCore'
 
 function getManagerBasePath() {
-  return window.location.pathname.startsWith('/instructor') ? '/instructor' : '/admin'
+  return '/teacher'
 }
 
 const emptyForm = { name: '' }

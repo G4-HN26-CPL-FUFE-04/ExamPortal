@@ -154,16 +154,22 @@ public class PortalService {
         userRepository.save(user);
     }
 
-    public List<ApiDtos.UserDto> getUsers(String keyword, UserStatus status) {
+    public List<ApiDtos.UserDto> getUsers(String keyword, UserStatus status, RoleName role) {
         List<User> users;
         if (keyword != null && !keyword.isBlank()) {
             users = userRepository.findByFullNameContainingIgnoreCaseOrEmailContainingIgnoreCase(keyword, keyword);
         } else if (status != null) {
             users = userRepository.findByStatus(status);
+        } else if (role != null) {
+            users = userRepository.findByRole_Name(role);
         } else {
             users = userRepository.findAll();
         }
-        return users.stream().map(this::toUserDto).toList();
+        return users.stream()
+            .filter(user -> role == null || user.getRole().getName() == role)
+            .filter(user -> status == null || user.getStatus() == status)
+            .map(this::toUserDto)
+            .toList();
     }
 
     public ApiDtos.UserDto getUser(Long id) {
@@ -175,6 +181,10 @@ public class PortalService {
         if (id == null && userRepository.existsByEmail(payload.email())) {
             throw new BadRequestException("Email already exists");
         }
+        if (id != null && userRepository.existsByEmailAndIdNot(payload.email(), id)) {
+            throw new BadRequestException("Email already exists");
+        }
+        ensureAdminDoesNotDisableOwnAccount(user, payload.role(), payload.status());
         user.setFullName(payload.fullName());
         user.setEmail(payload.email());
         if (payload.password() != null && !payload.password().isBlank()) {
@@ -189,18 +199,20 @@ public class PortalService {
 
     public ApiDtos.UserDto updateUserStatus(Long id, UserStatus status) {
         User user = findUser(id);
+        ensureAdminDoesNotDisableOwnAccount(user, user.getRole().getName(), status);
         user.setStatus(status);
         return toUserDto(userRepository.save(user));
     }
 
     public ApiDtos.UserDto updateUserRole(Long id, RoleName roleName) {
         User user = findUser(id);
+        ensureAdminDoesNotDisableOwnAccount(user, roleName, user.getStatus());
         user.setRole(getRole(roleName));
         return toUserDto(userRepository.save(user));
     }
 
     public List<ApiDtos.SubjectDto> getSubjects() {
-        return subjectRepository.findAll().stream()
+        return subjectRepository.findByCreatedBy_IdOrderByNameAsc(getCurrentUser().getId()).stream()
             .map(subject -> new ApiDtos.SubjectDto(
                 subject.getId(),
                 subject.getName(),
@@ -213,6 +225,9 @@ public class PortalService {
     public ApiDtos.SubjectDto saveSubject(ApiDtos.SubjectPayload payload, Long id) {
         validateSubjectName(payload.name(), id);
         Subject subject = id == null ? new Subject() : findSubject(id);
+        if (id != null) {
+            ensureOwnedByCurrentUser(subject.getCreatedBy(), "Subject");
+        }
         subject.setName(payload.name().trim());
         if (subject.getCreatedBy() == null) {
             subject.setCreatedBy(getCurrentUser());
@@ -228,6 +243,7 @@ public class PortalService {
 
     public void deleteSubject(Long id) {
         Subject subject = findSubject(id);
+        ensureOwnedByCurrentUser(subject.getCreatedBy(), "Subject");
         List<Exam> exams = examRepository.findBySubject_Id(id);
         exams.forEach(exam -> deleteExamDependencies(exam.getId()));
         if (!exams.isEmpty()) {
@@ -247,9 +263,7 @@ public class PortalService {
                 .toList();
         }
 
-        List<Classroom> classrooms = currentUser.getRole().getName() == RoleName.ADMIN
-            ? classroomRepository.findAll()
-            : classroomRepository.findByCreatedBy_IdOrderByCreatedAtDesc(currentUser.getId());
+        List<Classroom> classrooms = classroomRepository.findByCreatedBy_IdOrderByCreatedAtDesc(currentUser.getId());
         return classrooms.stream()
             .map(classroom -> toClassroomDto(classroom, null))
             .toList();
@@ -368,7 +382,9 @@ public class PortalService {
 
         ClassroomExamAssignment assignment = new ClassroomExamAssignment();
         assignment.setClassroom(classroom);
-        assignment.setExamSession(findExamSession(payload.examSessionId()));
+        ExamSession session = findExamSession(payload.examSessionId());
+        ensureOwnedByCurrentUser(session.getCreatedBy(), "Exam session");
+        assignment.setExamSession(session);
         return toClassroomAssignmentDto(classroomExamAssignmentRepository.save(assignment));
     }
 
@@ -383,7 +399,7 @@ public class PortalService {
     }
 
     public List<ApiDtos.QuestionBankDto> getQuestionBanks(Long subjectId) {
-        findSubject(subjectId);
+        ensureOwnedByCurrentUser(findSubject(subjectId).getCreatedBy(), "Subject");
         return questionBankRepository.findBySubject_IdOrderByNameAsc(subjectId).stream()
             .map(this::toQuestionBankDto)
             .toList();
@@ -391,9 +407,13 @@ public class PortalService {
 
     public ApiDtos.QuestionBankDto saveQuestionBank(ApiDtos.QuestionBankPayload payload, Long id) {
         Subject subject = findSubject(payload.subjectId());
+        ensureOwnedByCurrentUser(subject.getCreatedBy(), "Subject");
         validateQuestionBankName(subject.getId(), payload.name(), id);
 
         QuestionBank questionBank = id == null ? new QuestionBank() : findQuestionBank(id);
+        if (id != null) {
+            ensureOwnedByCurrentUser(questionBank.getCreatedBy(), "Question bank");
+        }
         questionBank.setSubject(subject);
         questionBank.setName(payload.name().trim());
         questionBank.setDescription(normalizeOptionalText(payload.description()));
@@ -405,6 +425,7 @@ public class PortalService {
 
     public void deleteQuestionBank(Long id) {
         QuestionBank questionBank = findQuestionBank(id);
+        ensureOwnedByCurrentUser(questionBank.getCreatedBy(), "Question bank");
         deleteQuestionsByBankId(id);
         questionBankRepository.deleteById(questionBank.getId());
         questionBankRepository.flush();
@@ -425,11 +446,17 @@ public class PortalService {
         } else {
             questions = questionRepository.findAll();
         }
-        return questions.stream().map(this::toQuestionSummaryDto).toList();
+        Long currentUserId = getCurrentUser().getId();
+        return questions.stream()
+            .filter(question -> question.getCreatedBy() != null && question.getCreatedBy().getId().equals(currentUserId))
+            .map(this::toQuestionSummaryDto)
+            .toList();
     }
 
     public ApiDtos.QuestionDetailDto getQuestion(Long id) {
-        return toQuestionDetailDto(findQuestion(id));
+        Question question = findQuestion(id);
+        ensureOwnedByCurrentUser(question.getCreatedBy(), "Question");
+        return toQuestionDetailDto(question);
     }
 
     public ApiDtos.QuestionDetailDto saveQuestion(ApiDtos.QuestionPayload payload, Long id) {
@@ -437,6 +464,10 @@ public class PortalService {
 
         Question question = id == null ? new Question() : findQuestion(id);
         QuestionBank questionBank = findQuestionBank(payload.questionBankId());
+        ensureOwnedByCurrentUser(questionBank.getCreatedBy(), "Question bank");
+        if (id != null) {
+            ensureOwnedByCurrentUser(question.getCreatedBy(), "Question");
+        }
 
         question.setContent(payload.content().trim());
         question.setQuestionBank(questionBank);
@@ -463,6 +494,7 @@ public class PortalService {
 
     public ApiDtos.QuestionImportPreviewDto previewQuestionImport(ApiDtos.QuestionImportPayload payload) {
         QuestionBank questionBank = findQuestionBank(payload.questionBankId());
+        ensureOwnedByCurrentUser(questionBank.getCreatedBy(), "Question bank");
         ImportParseResult parseResult = parseQuestionImport(payload.rawText());
         return new ApiDtos.QuestionImportPreviewDto(
             questionBank.getId(),
@@ -478,6 +510,7 @@ public class PortalService {
 
     public ApiDtos.QuestionImportResultDto importQuestions(ApiDtos.QuestionImportPayload payload) {
         QuestionBank questionBank = findQuestionBank(payload.questionBankId());
+        ensureOwnedByCurrentUser(questionBank.getCreatedBy(), "Question bank");
         ImportParseResult parseResult = parseQuestionImport(payload.rawText());
         if (!parseResult.errors().isEmpty()) {
             String errorMessage = parseResult.errors().stream()
@@ -491,21 +524,25 @@ public class PortalService {
     }
 
     public void deleteQuestion(Long id) {
+        ensureOwnedByCurrentUser(findQuestion(id).getCreatedBy(), "Question");
         questionOptionRepository.deleteAll(questionOptionRepository.findByQuestion_IdOrderByOptionLabelAsc(id));
         questionRepository.delete(findQuestion(id));
     }
 
     public List<ApiDtos.ExamDto> getDrafts() {
-        return examRepository.findAll().stream().map(this::toExamDto).toList();
+        return examRepository.findByCreatedBy_Id(getCurrentUser().getId()).stream().map(this::toExamDto).toList();
     }
 
     public ApiDtos.ExamDto getDraft(Long id) {
-        return toExamDto(findExam(id));
+        Exam exam = findExam(id);
+        ensureOwnedByCurrentUser(exam.getCreatedBy(), "Exam");
+        return toExamDto(exam);
     }
 
     public ApiDtos.ExamDto saveDraft(ApiDtos.ExamPayload payload, Long id) {
         Exam exam = id == null ? new Exam() : findExam(id);
         ensureExamEditable(exam);
+        ensureOwnedByCurrentUser(findSubject(payload.subjectId()).getCreatedBy(), "Subject");
         if (id != null && !exam.getSubject().getId().equals(payload.subjectId())
             && examQuestionRepository.countByExam_Id(id) > 0) {
             throw new BadRequestException("Cannot change subject while the exam still contains questions");
@@ -537,6 +574,7 @@ public class PortalService {
         ensureExamEditable(exam);
         ensureDraftHasCapacity(exam, 1);
         Question question = findQuestion(payload.questionId());
+        ensureOwnedByCurrentUser(question.getCreatedBy(), "Question");
         if (!exam.getSubject().getId().equals(question.getQuestionBank().getSubject().getId())) {
             throw new BadRequestException("Question subject must match exam subject");
         }
@@ -572,6 +610,7 @@ public class PortalService {
             }
 
             Question question = findQuestion(questionId);
+            ensureOwnedByCurrentUser(question.getCreatedBy(), "Question");
             if (!exam.getSubject().getId().equals(question.getQuestionBank().getSubject().getId())) {
                 throw new BadRequestException("Question subject must match exam subject");
             }
@@ -638,7 +677,7 @@ public class PortalService {
     public List<ApiDtos.ExamSessionDto> getExamSessions() {
         User currentUser = getCurrentUser();
         if (currentUser.getRole().getName() != RoleName.STUDENT) {
-            return examSessionRepository.findAll().stream().map(this::toSessionDto).toList();
+            return examSessionRepository.findByCreatedBy_Id(currentUser.getId()).stream().map(this::toSessionDto).toList();
         }
 
         List<Long> approvedClassroomIds = getApprovedClassroomIds(currentUser.getId());
@@ -672,6 +711,10 @@ public class PortalService {
         }
         ExamSession session = id == null ? new ExamSession() : findExamSession(id);
         Exam exam = findExam(payload.examId());
+        ensureOwnedByCurrentUser(exam.getCreatedBy(), "Exam");
+        if (id != null) {
+            ensureOwnedByCurrentUser(session.getCreatedBy(), "Exam session");
+        }
         long questionCount = examQuestionRepository.countByExam_Id(exam.getId());
         if (questionCount < 1) {
             throw new BadRequestException("Draft must contain at least 1 question before creating a session");
@@ -694,12 +737,14 @@ public class PortalService {
     }
 
     public void deleteExamSession(Long id) {
+        ensureOwnedByCurrentUser(findExamSession(id).getCreatedBy(), "Exam session");
         classroomExamAssignmentRepository.deleteByExamSession_Id(id);
         examSessionRepository.delete(findExamSession(id));
     }
 
     public ApiDtos.ExamSessionDto updateExamSessionStatus(Long id, SessionStatus status) {
         ExamSession session = findExamSession(id);
+        ensureOwnedByCurrentUser(session.getCreatedBy(), "Exam session");
         session.setStatus(status);
         return toSessionDto(examSessionRepository.save(session));
     }
@@ -801,25 +846,38 @@ public class PortalService {
     }
 
     public List<ApiDtos.AttemptDto> getAttemptsBySession(Long sessionId) {
+        ensureOwnedByCurrentUser(findExamSession(sessionId).getCreatedBy(), "Exam session");
         return attemptRepository.findByExamSession_Id(sessionId).stream()
             .map(attempt -> toAttemptDto(attempt, false))
             .toList();
     }
 
     public ApiDtos.DashboardOverviewDto getDashboardOverview() {
+        User teacher = getCurrentUser();
+        List<Classroom> classrooms = classroomRepository.findByCreatedBy_IdOrderByCreatedAtDesc(teacher.getId());
+        long studentCount = classrooms.stream()
+            .flatMap(classroom -> classroomMemberRepository.findByClassroom_IdOrderByStatusAscJoinedAtAsc(classroom.getId()).stream())
+            .filter(member -> member.getStatus() == ClassroomMemberStatus.APPROVED)
+            .map(member -> member.getUser().getId())
+            .distinct()
+            .count();
+        List<ExamSession> sessions = examSessionRepository.findByCreatedBy_Id(teacher.getId());
+        long attemptCount = sessions.stream()
+            .mapToLong(session -> attemptRepository.findByExamSession_Id(session.getId()).size())
+            .sum();
         return new ApiDtos.DashboardOverviewDto(
-            userRepository.count(),
-            userRepository.countByRole_Name(RoleName.STUDENT),
-            userRepository.countByRole_Name(RoleName.INSTRUCTOR),
-            questionRepository.count(),
-            examRepository.count(),
-            examSessionRepository.count(),
-            attemptRepository.count()
+            studentCount,
+            studentCount,
+            1,
+            questionRepository.findAll().stream().filter(question -> isOwnedBy(question.getCreatedBy(), teacher)).count(),
+            examRepository.findByCreatedBy_Id(teacher.getId()).size(),
+            sessions.size(),
+            attemptCount
         );
     }
 
     public List<ApiDtos.DashboardExamStatsDto> getDashboardExamStats() {
-        return examSessionRepository.findAll().stream().map(session -> {
+        return examSessionRepository.findByCreatedBy_Id(getCurrentUser().getId()).stream().map(session -> {
             List<Attempt> attempts = attemptRepository.findByExamSession_Id(session.getId());
             double average = attempts.stream().mapToDouble(Attempt::getScore).average().orElse(0);
             double highest = attempts.stream().mapToDouble(Attempt::getScore).max().orElse(0);
@@ -829,9 +887,10 @@ public class PortalService {
     }
 
     public ApiDtos.DashboardQuestionStatsDto getDashboardQuestionStats() {
+        User teacher = getCurrentUser();
         return new ApiDtos.DashboardQuestionStatsDto(
-            questionRepository.count(),
-            subjectRepository.count()
+            questionRepository.findAll().stream().filter(question -> isOwnedBy(question.getCreatedBy(), teacher)).count(),
+            subjectRepository.findByCreatedBy_IdOrderByNameAsc(teacher.getId()).size()
         );
     }
 
@@ -858,6 +917,17 @@ public class PortalService {
     private User findUser(Long id) {
         return userRepository.findById(id)
             .orElseThrow(() -> new NotFoundException("User not found"));
+    }
+
+    private void ensureAdminDoesNotDisableOwnAccount(User target, RoleName roleName, UserStatus status) {
+        if (target.getId() == null) {
+            return;
+        }
+        User currentUser = getCurrentUser();
+        if (target.getId().equals(currentUser.getId())
+            && (roleName != RoleName.ADMIN || status == UserStatus.LOCKED)) {
+            throw new BadRequestException("You cannot remove your own admin access or lock your own account");
+        }
     }
 
     private Classroom findClassroom(Long id) {
@@ -978,10 +1048,7 @@ public class PortalService {
 
     private void ensureClassroomManagementAccess(Classroom classroom) {
         User currentUser = getCurrentUser();
-        if (currentUser.getRole().getName() == RoleName.ADMIN) {
-            return;
-        }
-        if (currentUser.getRole().getName() != RoleName.INSTRUCTOR || !classroom.getCreatedBy().getId().equals(currentUser.getId())) {
+        if (currentUser.getRole().getName() != RoleName.TEACHER || !classroom.getCreatedBy().getId().equals(currentUser.getId())) {
             throw new NotFoundException("Classroom not found");
         }
     }
@@ -1000,8 +1067,12 @@ public class PortalService {
 
     private void ensureSessionAccess(ExamSession session) {
         User currentUser = getCurrentUser();
-        if (currentUser.getRole().getName() != RoleName.STUDENT) {
+        if (currentUser.getRole().getName() == RoleName.TEACHER) {
+            ensureOwnedByCurrentUser(session.getCreatedBy(), "Exam session");
             return;
+        }
+        if (currentUser.getRole().getName() != RoleName.STUDENT) {
+            throw new NotFoundException("Exam session not found");
         }
 
         List<Long> approvedClassroomIds = getApprovedClassroomIds(currentUser.getId());
@@ -1305,15 +1376,33 @@ public class PortalService {
         if (roleName == RoleName.STUDENT && !attempt.getStudent().getId().equals(currentUser.getId())) {
             throw new NotFoundException("Attempt not found");
         }
+        if (roleName == RoleName.TEACHER) {
+            ensureOwnedByCurrentUser(attempt.getExamSession().getCreatedBy(), "Attempt");
+        }
+        if (roleName == RoleName.ADMIN) {
+            throw new NotFoundException("Attempt not found");
+        }
     }
 
     private void ensureExamEditable(Exam exam) {
         if (exam.getId() == null) {
             return;
         }
+        ensureOwnedByCurrentUser(exam.getCreatedBy(), "Exam");
         if (examSessionRepository.existsByExam_IdAndOpenTimeLessThanEqual(exam.getId(), LocalDateTime.now())) {
             throw new BadRequestException("Exam is locked because at least one session has reached its start time");
         }
+    }
+
+    private void ensureOwnedByCurrentUser(User owner, String resourceName) {
+        User currentUser = getCurrentUser();
+        if (owner == null || !owner.getId().equals(currentUser.getId())) {
+            throw new NotFoundException(resourceName + " not found");
+        }
+    }
+
+    private boolean isOwnedBy(User owner, User user) {
+        return owner != null && owner.getId().equals(user.getId());
     }
 
     private void ensureSessionSnapshot(ExamSession session) {

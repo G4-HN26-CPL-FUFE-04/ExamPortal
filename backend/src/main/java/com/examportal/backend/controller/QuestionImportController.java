@@ -19,7 +19,7 @@ public class QuestionImportController {
         this.portalService = portalService;
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','INSTRUCTOR')")
+    @PreAuthorize("hasRole('TEACHER')")
     @PostMapping("/preview")
     public ResponseEntity<ApiDtos.QuestionImportPreviewDto> previewImportQuestions(
         @Valid @RequestBody ApiDtos.QuestionImportPayload payload
@@ -27,7 +27,7 @@ public class QuestionImportController {
         return ResponseEntity.ok(portalService.previewQuestionImport(payload));
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','INSTRUCTOR')")
+    @PreAuthorize("hasRole('TEACHER')")
     @PostMapping
     public ResponseEntity<ApiDtos.QuestionImportResultDto> importQuestions(
         @Valid @RequestBody ApiDtos.QuestionImportPayload payload

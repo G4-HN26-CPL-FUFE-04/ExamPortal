@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Modifying;
 
 public interface ExamRepository extends JpaRepository<Exam, Long> {
     List<Exam> findBySubject_Id(Long subjectId);
+    List<Exam> findByCreatedBy_Id(Long userId);
 
     @Modifying
     void deleteBySubject_Id(Long subjectId);

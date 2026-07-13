@@ -18,19 +18,19 @@ public class DashboardController {
         this.portalService = portalService;
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','INSTRUCTOR')")
+    @PreAuthorize("hasRole('TEACHER')")
     @GetMapping("/overview")
     public ResponseEntity<ApiDtos.DashboardOverviewDto> overview() {
         return ResponseEntity.ok(portalService.getDashboardOverview());
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','INSTRUCTOR')")
+    @PreAuthorize("hasRole('TEACHER')")
     @GetMapping("/exam-stats")
     public ResponseEntity<List<ApiDtos.DashboardExamStatsDto>> examStats() {
         return ResponseEntity.ok(portalService.getDashboardExamStats());
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','INSTRUCTOR')")
+    @PreAuthorize("hasRole('TEACHER')")
     @GetMapping("/question-stats")
     public ResponseEntity<ApiDtos.DashboardQuestionStatsDto> questionStats() {
         return ResponseEntity.ok(portalService.getDashboardQuestionStats());
